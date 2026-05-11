@@ -60,9 +60,9 @@
     .sidebar::-webkit-scrollbar{ display: none; }
 
     .brand{
-        padding:12px 12px 16px;
+        padding:12px 12px 8px;
         border-bottom:1px solid var(--line);
-        margin-bottom:14px;
+        margin-bottom:8px;
     }
 
     .brand .name{
@@ -863,8 +863,8 @@
 
     <aside class="sidebar @if(auth()->user()->role === 'client') client-sidebar @endif" id="sidebar">
         <div class="brand">
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 16px;">
-                <img src="/images/logo.png.png" alt="Logo" style="width: 120px; height: 120px; object-fit: contain;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 8px;">
+                <img src="/images/brand-logo.png" alt="Logo" style="width: 392px; height: 144px; object-fit: contain;">
                 <div class="name" style="text-align: center;">{{ $brand ?? 'Inventory System' }}</div>
             </div>
             <div class="role" style="position: relative; text-align: center;">

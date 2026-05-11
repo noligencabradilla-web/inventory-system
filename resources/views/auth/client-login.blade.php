@@ -69,7 +69,7 @@
     }
 
     .login-logo img{
-        max-width:140px;
+        max-width:280px;
         height:auto;
         display:block;
         margin:0 auto;
@@ -83,12 +83,13 @@
 
     .logo-label{
         text-align:center;
-        font-size:22px;
-        font-weight:800;
-        color:var(--blue);
+        font-size:32px;
+        font-weight:900;
+        color:#0056b3;
         margin-top:12px;
-        letter-spacing:1px;
+        letter-spacing:3px;
         animation: fadeIn 0.8s ease 0.4s both;
+        font-family: Arial, sans-serif;
     }
 
     .login-header{
@@ -247,8 +248,8 @@
 <body>
     <div class="login-container">
         <div class="login-logo">
-            <img src="/images/logo.png.png" alt="Logo">
-            <div class="logo-label">Inventory System</div>
+            <img src="/images/login-logo.png?v={{ time() }}" alt="Logo">
+            <!-- <div class="logo-label">SIMS</div> -->
         </div>
 
         @if(session('error'))

@@ -19,12 +19,7 @@ return new class extends Migration {
                 ->after('member_id');
         });
 
-        Schema::table('stock_request_items', function (Blueprint $table) {
-            $table->text('rejection_reason')
-                ->nullable()
-                ->after('approved_qty');
-        });
-    }
+            }
 
     public function down(): void
     {
@@ -33,8 +28,5 @@ return new class extends Migration {
             $table->dropColumn(['member_id', 'reason']);
         });
 
-        Schema::table('stock_request_items', function (Blueprint $table) {
-            $table->dropColumn('rejection_reason');
-        });
-    }
+            }
 };
