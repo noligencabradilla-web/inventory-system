@@ -270,10 +270,10 @@
             <div style="overflow-x:auto; border-radius:16px; box-shadow:0 8px 25px rgba(59,130,246,0.15); background:linear-gradient(135deg, #eff6ff, #dbeafe);">
                 <table style="width:100%; border-collapse:collapse;">
                     <tr style="background:linear-gradient(135deg, #3b82f6, #1d4ed8);">
-                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px;">Item</th>
-                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px;">Requested</th>
-                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px;">Approved</th>
-                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px;">Result</th>
+                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px;">Item</th>
+                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px;">Requested</th>
+                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px;">Approved</th>
+                        <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px;">Result</th>
                     </tr>
 
                     @forelse($req->items as $item)

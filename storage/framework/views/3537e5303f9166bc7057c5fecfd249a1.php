@@ -503,10 +503,10 @@
                 <div style="overflow-x:auto; border-radius:16px; box-shadow:0 8px 25px rgba(59,130,246,0.15); background:linear-gradient(135deg, #eff6ff, #dbeafe);">
                     <table style="width:100%; border-collapse:collapse;">
                                 <tr style="background:linear-gradient(135deg, #3b82f6, #1d4ed8);">
-                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:180px;">Item</th>
-                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:120px;">Requested</th>
-                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:120px;">Available</th>
-                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:160px;">Approved Qty</th>
+                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px; min-width:180px;">Item</th>
+                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px; min-width:120px;">Requested</th>
+                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px; min-width:120px;">Available</th>
+                            <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px; min-width:160px;">Approved Qty</th>
                         </tr>
 
                         <?php $__empty_2 = true; $__currentLoopData = $req->items; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_2 = false; ?>
@@ -576,7 +576,7 @@
                         
                         <?php if($req->status !== 'pending'): ?>
                             
-                            <button class="btn-ghost" type="button" onclick="confirmAction(event, 'rejected', 'Reject Entire Request', 'This request will be rejected. This action cannot be undone.', '<?php echo e($req->id); ?>')">
+                            <button class="btn-ghost" type="button" onclick="rejectEntireRequest('<?php echo e($req->id); ?>')">
                                 Reject Whole Request
                             </button>
 
@@ -791,7 +791,7 @@ document.getElementById('confirmModal')?.addEventListener('click', function(e){
     transform: translateY(0);
 }
 .modal-btn-confirm {
-    background:#dc2626; 
+    background:#3ec63f; 
     color:#fff;
 }
 .modal-btn-confirm:hover {
@@ -860,28 +860,75 @@ function closeRejectionModal() {
     currentDecisionForm = null;
 }
 
+function rejectEntireRequest(requestId) {
+    currentDecisionForm = document.querySelector(`form[action*="${requestId}"]`);
+    if (!currentDecisionForm) {
+        console.error('Form not found for request ID:', requestId);
+        return;
+    }
+    
+    // Set up for entire request rejection
+    document.getElementById('rejectionItemId').value = 'entire_request';
+    document.getElementById('rejectionApprovedQty').value = '0';
+    
+    // Update modal title and description for entire request
+    const modalTitle = document.querySelector('#rejectionReasonModal h3');
+    const modalDesc = document.querySelector('#rejectionReasonModal p');
+    modalTitle.textContent = 'Reject Entire Request';
+    modalDesc.textContent = 'Please provide a reason for rejecting this entire request. This will be visible to the client.';
+    
+    // Update submit button text
+    const submitBtn = document.querySelector('#rejectionReasonForm button[type="submit"]');
+    submitBtn.textContent = 'Reject Entire Request';
+    
+    // Show modal
+    document.getElementById('rejectionReason').value = '';
+    document.getElementById('rejectionReasonModal').style.display = 'flex';
+}
+
 document.getElementById('rejectionReasonForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
     if (!currentDecisionForm) return;
     
     const rejectionReason = document.getElementById('rejectionReason').value;
-    const approvedQtyInputs = currentDecisionForm.querySelectorAll('input[name^="approved_qty"]');
+    const itemId = document.getElementById('rejectionItemId').value;
+    const approvedQty = document.getElementById('rejectionApprovedQty').value;
     
-    // Add rejection reason to all items with 0 approved qty
-    approvedQtyInputs.forEach(input => {
-        const qty = parseInt(input.value) || 0;
-        const itemId = input.name.match(/\[(\d+)\]/)[1];
+    // Check if this is an entire request rejection
+    if (itemId === 'entire_request') {
+        // Add status=rejected parameter for entire request rejection
+        const statusInput = document.createElement('input');
+        statusInput.type = 'hidden';
+        statusInput.name = 'status';
+        statusInput.value = 'rejected';
+        currentDecisionForm.appendChild(statusInput);
         
-        if (qty === 0) {
-            // Add rejection reason input
-            const rejectionInput = document.createElement('input');
-            rejectionInput.type = 'hidden';
-            rejectionInput.name = `rejection_reason[${itemId}]`;
-            rejectionInput.value = rejectionReason;
-            currentDecisionForm.appendChild(rejectionInput);
-        }
-    });
+        // Add rejection reason parameter
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'rejection_reason';
+        reasonInput.value = rejectionReason;
+        currentDecisionForm.appendChild(reasonInput);
+    } else {
+        // Individual item rejection logic (existing)
+        const approvedQtyInputs = currentDecisionForm.querySelectorAll('input[name^="approved_qty"]');
+        
+        // Add rejection reason to all items with 0 approved qty
+        approvedQtyInputs.forEach(input => {
+            const qty = parseInt(input.value) || 0;
+            const itemId = input.name.match(/\[(\d+)\]/)[1];
+            
+            if (qty === 0) {
+                // Add rejection reason input
+                const rejectionInput = document.createElement('input');
+                rejectionInput.type = 'hidden';
+                rejectionInput.name = `rejection_reason[${itemId}]`;
+                rejectionInput.value = rejectionReason;
+                currentDecisionForm.appendChild(rejectionInput);
+            }
+        });
+    }
     
     // Submit the form
     currentDecisionForm.submit();

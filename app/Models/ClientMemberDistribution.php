@@ -14,6 +14,7 @@ class ClientMemberDistribution extends Model
         'stock_request_item_id',
         'distributed_qty',
         'used_qty',
+        'notes',
     ];
 
     public function member()
@@ -24,5 +25,10 @@ class ClientMemberDistribution extends Model
     public function stockRequestItem()
     {
         return $this->belongsTo(StockRequestItem::class, 'stock_request_item_id');
+    }
+
+    public function stock()
+    {
+        return $this->hasOneThrough(Stock::class, StockRequestItem::class, 'id', 'id', 'stock_request_item_id', 'stock_id');
     }
 }

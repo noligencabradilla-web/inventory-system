@@ -156,6 +156,26 @@
             width:100%;
             justify-content:center;
         }
+        
+        /* Position logout button at bottom for admin sidebar */
+        .sidebar:not(.client-sidebar){
+            display:flex;
+            flex-direction:column;
+        }
+        .sidebar:not(.client-sidebar) .nav{
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            flex:1;
+            overflow:auto;
+            scrollbar-width:none;
+        }
+        .sidebar:not(.client-sidebar) .nav::-webkit-scrollbar{ display:none; }
+        .sidebar:not(.client-sidebar) .nav a.logout-link{
+            margin-top:auto;
+            width:100%;
+            justify-content:center;
+        }
     }
 
     /* MOBILE: better responsive spacing and full-width nav on small screens */
@@ -864,7 +884,7 @@
     <aside class="sidebar @if(auth()->user()->role === 'client') client-sidebar @endif" id="sidebar">
         <div class="brand">
             <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 8px;">
-                <img src="/images/brand-logo.png" alt="Logo" style="width: 392px; height: 144px; object-fit: contain;">
+                <img src="/images/brand-logo.png" alt="Logo" style="height: 122; object-fit: contain;">
                 <div class="name" style="text-align: center;">{{ $brand ?? 'Inventory System' }}</div>
             </div>
             <div class="role" style="position: relative; text-align: center;">

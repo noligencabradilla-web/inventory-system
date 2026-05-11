@@ -663,8 +663,7 @@ function renderCart(){
             <th style="padding: 8px 12px; border: 1px solid #e2e8f0; background: #f8fafc; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Description</th>
             <th style="padding: 8px 12px; border: 1px solid #e2e8f0; background: #f8fafc; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Unit</th>
             <th style="padding: 8px 12px; border: 1px solid #e2e8f0; background: #f8fafc; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Qty</th>
-            <th style="padding: 8px 12px; border: 1px solid #e2e8f0; background: #f8fafc; text-align: right; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Action</th>
-        </tr>
+                    </tr>
     `;
     
     const tbody = document.createElement('tbody');
@@ -689,12 +688,7 @@ function renderCart(){
                        value="${qty}" onchange="updateQty(${stockId}, ${s.stock})" 
                        style="width: 60px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px; text-align: center;">
             </td>
-            <td style="padding: 10px 12px; border: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #1e293b; font-size: 12px;">${qty}</td>
-            <td style="padding: 10px 12px; border: 1px solid #e2e8f0; text-align: center;">
-                <button type="button" class="btn-ghost" onclick="removeFromCart(${stockId})" 
-                        style="padding: 4px 8px; font-size: 11px; border-radius: 4px;">Remove</button>
-            </td>
-        `;
+                                `;
         tbody.appendChild(tr);
     });
 

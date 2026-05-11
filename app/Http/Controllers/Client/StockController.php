@@ -48,14 +48,23 @@ class StockController extends Controller
             $stockId = $item->stock->id;
             $myInventory = max(0, ($item->approved_qty ?? 0) - ($item->distributed_qty ?? 0));
             
-            $stockInventoryMap[$stockId] = (object)[
-                'id' => $item->id,
-                'stock' => $item->stock,
-                'approved_qty' => $item->approved_qty,
-                'distributed_qty' => $item->distributed_qty,
-                'my_inventory' => $myInventory,
-                'type' => 'inventory'
-            ];
+            // Check if this stock already exists in the map and accumulate
+            if (isset($stockInventoryMap[$stockId])) {
+                // Add to existing inventory
+                $stockInventoryMap[$stockId]->approved_qty += $item->approved_qty;
+                $stockInventoryMap[$stockId]->distributed_qty += ($item->distributed_qty ?? 0);
+                $stockInventoryMap[$stockId]->my_inventory += $myInventory;
+            } else {
+                // Create new entry
+                $stockInventoryMap[$stockId] = (object)[
+                    'id' => $item->id,
+                    'stock' => $item->stock,
+                    'approved_qty' => $item->approved_qty,
+                    'distributed_qty' => $item->distributed_qty,
+                    'my_inventory' => $myInventory,
+                    'type' => 'inventory'
+                ];
+            }
         }
         
         // Then, add direct request quantities to existing items or create new entries

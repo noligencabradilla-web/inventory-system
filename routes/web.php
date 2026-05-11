@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 | AUTH CONTROLLERS
 |--------------------------------------------------------------------------
 */
+use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\AdminAuthController;
 use App\Http\Controllers\Auth\ClientAuthController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -46,21 +47,23 @@ use App\Http\Controllers\Client\PasswordResetController as ClientPasswordResetCo
 | ROOT
 |--------------------------------------------------------------------------
 */
-Route::get('/', fn () => redirect('/client/login'));
+Route::get('/', fn () => redirect('/login'));
 
 /*
 |--------------------------------------------------------------------------
 | PUBLIC AUTH ROUTES
 |--------------------------------------------------------------------------
 */
-Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
-Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('admin.login.submit');
+// Unified login routes
+Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
+Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
 
-Route::get('/client/login', [ClientAuthController::class, 'showLogin'])->name('client.login');
-Route::post('/client/login', [ClientAuthController::class, 'login'])->name('client.login.submit');
+// Keep existing routes for backward compatibility
+Route::get('/admin/login', [LoginController::class, 'showLoginForm'])->name('admin.login');
+Route::post('/admin/login', [LoginController::class, 'login'])->name('admin.login.submit');
 
-// Default login route (redirect to client login)
-Route::get('/login', fn () => redirect('/client/login'))->name('login');
+Route::get('/client/login', [LoginController::class, 'showLoginForm'])->name('client.login');
+Route::post('/client/login', [LoginController::class, 'login'])->name('client.login.submit');
 
 // Admin self-password reset (public, no auth required)
 Route::get('/admin/password-reset-self', [AdminPasswordResetController::class, 'showSelfResetForm'])->name('admin.password-reset-self.form');
