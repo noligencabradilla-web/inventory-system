@@ -254,11 +254,11 @@
     <div class="login-container">
         <div class="login-logo">
             <img src="/images/login-logo.png?v=<?php echo e(time()); ?>" alt="Logo">
-            <div class="logo-label">SIMS</div>
+            <!-- <div class="logo-label">SIMS</div> -->
         </div>
 
         <div class="login-header">
-            <h2>Welcome Back</h2>
+            <h2>Welcome</h2>
             <p>Sign in to your account</p>
         </div>
 
