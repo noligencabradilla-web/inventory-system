@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@php
+<?php
   $brand = 'Inventory System';
   $pageTitle = 'Requests';
 
@@ -17,13 +15,13 @@
       'rejected' => $rejected,
       default => $pending,
   };
-@endphp
+?>
 
-@section('sidebar')
-    @include('partials.admin-sidebar')
-@endsection
+<?php $__env->startSection('sidebar'); ?>
+    <?php echo $__env->make('partials.admin-sidebar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php $__env->stopSection(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <style>
     .tabs{ 
         display:flex; 
@@ -404,25 +402,25 @@
 </style>
 
 <div class="tabs">
-    <a class="tab pending {{ $activeTab==='pending'?'active':'' }}" href="/admin/requests?tab=pending">
-        Pending <span class="badge">{{ $pending->count() }}</span>
+    <a class="tab pending <?php echo e($activeTab==='pending'?'active':''); ?>" href="/admin/requests?tab=pending">
+        Pending <span class="badge"><?php echo e($pending->count()); ?></span>
     </a>
-    <a class="tab approved {{ $activeTab==='approved'?'active':'' }}" href="/admin/requests?tab=approved">
-        Approved <span class="badge">{{ $approved->count() }}</span>
+    <a class="tab approved <?php echo e($activeTab==='approved'?'active':''); ?>" href="/admin/requests?tab=approved">
+        Approved <span class="badge"><?php echo e($approved->count()); ?></span>
     </a>
-    <a class="tab ready {{ $activeTab==='ready_to_receive'?'active':'' }}" href="/admin/requests?tab=ready_to_receive">
-        Ready to Receive <span class="badge">{{ $ready->count() }}</span>
+    <a class="tab ready <?php echo e($activeTab==='ready_to_receive'?'active':''); ?>" href="/admin/requests?tab=ready_to_receive">
+        Ready to Receive <span class="badge"><?php echo e($ready->count()); ?></span>
     </a>
-    <a class="tab rejected {{ $activeTab==='rejected'?'active':'' }}" href="/admin/requests?tab=rejected">
-        Rejected <span class="badge">{{ $rejected->count() }}</span>
+    <a class="tab rejected <?php echo e($activeTab==='rejected'?'active':''); ?>" href="/admin/requests?tab=rejected">
+        Rejected <span class="badge"><?php echo e($rejected->count()); ?></span>
     </a>
 </div>
 
 <div id="no-results" class="no-results" style="display:none;">No results found.</div>
 
-{{-- Search bar: search by Ref No. (#123) or client name --}}
+
 <div style="background:linear-gradient(135deg, #f8fafc, #f1f5f9); border-radius:12px; padding:20px; margin-bottom:20px; border:1px solid #e2e8f0; box-shadow:0 4px 12px rgba(15,23,42,.06);">
-    <form method="GET" action="{{ route('requests.index') }}" style="display:flex; gap:12px; align-items:center; width:100%;">
+    <form method="GET" action="<?php echo e(route('requests.index')); ?>" style="display:flex; gap:12px; align-items:center; width:100%;">
         <div style="position:relative; flex:1;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); pointer-events:none;">
                 <circle cx="11" cy="11" r="8"></circle>
@@ -432,57 +430,59 @@
                 type="text"
                 name="q"
                 placeholder="Search by Ref No. or client name"
-                value="{{ request('q') }}"
+                value="<?php echo e(request('q')); ?>"
                 style="width:100%; padding:12px 12px 12px 40px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05);"
             >
-            <input type="hidden" name="tab" value="{{ $activeTab }}">
+            <input type="hidden" name="tab" value="<?php echo e($activeTab); ?>">
         </div>
         <button type="submit" class="btn" style="padding:12px 20px; border-radius:10px; border:2px solid #3b82f6; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#ffffff; font-weight:700; transition:all 0.3s ease; box-shadow:0 4px 12px rgba(59,130,246,0.2);">Search</button>
-        <a href="{{ route('requests.index', ['tab' => $activeTab]) }}" class="btn-ghost" style="padding:12px 20px; border-radius:10px; border:2px solid #e2e8f0; background:#ffffff; color:#64748b; font-weight:600; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05);">Clear</a>
+        <a href="<?php echo e(route('requests.index', ['tab' => $activeTab])); ?>" class="btn-ghost" style="padding:12px 20px; border-radius:10px; border:2px solid #e2e8f0; background:#ffffff; color:#64748b; font-weight:600; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05);">Clear</a>
         <span id="search-spinner" style="display:none; margin-left:12px;"></span>
     </form>
 </div>
 
 <div id="requests-list">
-@forelse($shown as $req)
-    @php $rid = 'req-'.$req->id; @endphp
+<?php $__empty_1 = true; $__currentLoopData = $shown; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $req): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+    <?php $rid = 'req-'.$req->id; ?>
 
-    <div class="req-card status-{{ $req->status }}">
-        <div class="req-header" onclick="toggleReq('{{ $rid }}')">
+    <div class="req-card status-<?php echo e($req->status); ?>">
+        <div class="req-header" onclick="toggleReq('<?php echo e($rid); ?>')">
             <div>
                 <div class="req-title">
-                    Request from <span style="color:#2563eb;">{{ $req->office }}</span>
+                    Request from <span style="color:#2563eb;"><?php echo e($req->office); ?></span>
                     <span class="muted">•</span>
-                    <span class="muted">{{ $req->client?->name ?? 'Client' }}</span>
-                    @if($req->member)
+                    <span class="muted"><?php echo e($req->client?->name ?? 'Client'); ?></span>
+                    <?php if($req->member): ?>
                         <span class="muted">•</span>
-                        <span style="color:#059669;">Member: {{ $req->member->name }}</span>
-                    @endif
+                        <span style="color:#059669;">Member: <?php echo e($req->member->name); ?></span>
+                    <?php endif; ?>
                     <span class="muted">•</span>
-                    <span class="muted">{{ $req->created_at?->format('M d, Y') }}</span>
+                    <span class="muted"><?php echo e($req->created_at?->format('M d, Y')); ?></span>
                 </div>
 
                 <div class="req-sub">
                     <span class="muted">Status:</span>
-                    <span class="status-pill status-{{ $req->status }}">{{ strtoupper(str_replace('_',' ', $req->status)) }}</span>
+                    <span class="status-pill status-<?php echo e($req->status); ?>"><?php echo e(strtoupper(str_replace('_',' ', $req->status))); ?></span>
                     <span class="muted" style="margin-left:10px;">Request ID:</span>
-                    <b>#{{ $req->id }}</b>
+                    <b>#<?php echo e($req->id); ?></b>
                 </div>
 
-                @if($req->reason)
+                <?php if($req->reason): ?>
                     <div class="req-sub" style="margin-top:8px;">
                         <span class="muted">Reason:</span>
                         <div style="margin-top:4px; padding:8px 12px; background:linear-gradient(135deg, #f8fafc, #f1f5f9); border:1px solid #e2e8f0; border-radius:8px; color:#475569; font-size:13px; line-height:1.4;">
-                            {{ $req->reason }}
+                            <?php echo e($req->reason); ?>
+
                         </div>
                     </div>
-                @endif
+                <?php endif; ?>
             </div>
 
             <div class="req-right">
                 Ref. No:
                 <span style="color:#0f172a;">
-                    #{{ $req->id }}
+                    #<?php echo e($req->id); ?>
+
                 </span>
                 <div class="muted" style="font-size:12px; font-weight:600; margin-top:4px;">
                     Click to view details
@@ -490,15 +490,15 @@
             </div>
         </div>
 
-        <div id="{{ $rid }}" class="req-body">
+        <div id="<?php echo e($rid); ?>" class="req-body">
             <div class="muted" style="margin-bottom:10px;">
                 <!-- Approve partially by setting Approved Qty per item (0 = rejected item). -->
             </div>
 
-            {{-- ✅ ONE FORM FOR ALL BUTTONS --}}
-            <form method="POST" action="{{ route('admin.requests.decision', $req->id) }}">
-                @csrf
-                @method('PUT')
+            
+            <form method="POST" action="<?php echo e(route('admin.requests.decision', $req->id)); ?>">
+                <?php echo csrf_field(); ?>
+                <?php echo method_field('PUT'); ?>
 
                 <div style="overflow-x:auto; border-radius:16px; box-shadow:0 8px 25px rgba(59,130,246,0.15); background:linear-gradient(135deg, #eff6ff, #dbeafe);">
                     <table style="width:100%; border-collapse:collapse;">
@@ -509,91 +509,93 @@
                             <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px; min-width:160px;">Approved Qty</th>
                         </tr>
 
-                        @forelse($req->items as $item)
-                            @php
+                        <?php $__empty_2 = true; $__currentLoopData = $req->items; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_2 = false; ?>
+                            <?php
                                 $lineQty = $item->approved_qty ?? $item->requested_qty;
-                            @endphp
+                            ?>
                             <tr style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);">
                                 <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; text-align:left;">
-                                    <div style="font-weight:700; color:#1e40af; font-size:14px;">{{ $item->stock?->id_no ?? '' }}</div>
-                                    <div style="color:#64748b; font-size:14px; margin-top:3px;">{{ $item->stock?->description ?? 'N/A' }}</div>
-                                    <div style="color:#64748b; font-size:11px; margin-top:3px;">Unit: {{ $item->stock?->unit ?? '—' }}</div>
+                                    <div style="font-weight:700; color:#1e40af; font-size:14px;"><?php echo e($item->stock?->id_no ?? ''); ?></div>
+                                    <div style="color:#64748b; font-size:14px; margin-top:3px;"><?php echo e($item->stock?->description ?? 'N/A'); ?></div>
+                                    <div style="color:#64748b; font-size:11px; margin-top:3px;">Unit: <?php echo e($item->stock?->unit ?? '—'); ?></div>
                                 </td>
 
-                                <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $item->requested_qty }}</td>
-                                <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $item->stock?->stock ?? 0 }}</td>
-                                <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $lineQty }}</td>
+                                <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($item->requested_qty); ?></td>
+                                <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($item->stock?->stock ?? 0); ?></td>
+                                <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($lineQty); ?></td>
 
                                 <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; min-width:160px;">
                                     <div style="display:flex; gap:6px; align-items:center;">
                                         <input
                                             type="number"
                                             class="approved-qty"
-                                            name="approved_qty[{{ $item->id }}]"
+                                            name="approved_qty[<?php echo e($item->id); ?>]"
                                             min="0"
-                                            max="{{ $item->stock?->stock ?? 0 }}"
-                                            value="{{ $item->approved_qty ?? 0 }}"
-                                            {{ $activeTab !== 'pending' ? 'readonly' : '' }}
+                                            max="<?php echo e($item->stock?->stock ?? 0); ?>"
+                                            value="<?php echo e($item->approved_qty ?? 0); ?>"
+                                            <?php echo e($activeTab !== 'pending' ? 'readonly' : ''); ?>
+
                                             style="flex:1; text-align:center; padding:8px 10px; border:2px solid #e2e8f0; border-radius:8px; font-size:14px; transition:all 0.3s ease; background:#ffffff;"
                                         >
-                                        @if($activeTab === 'pending')
+                                        <?php if($activeTab === 'pending'): ?>
                                             <button
                                                 type="button"
                                                 class="btn-max"
-                                                onclick="setMax(this, {{ $item->requested_qty }})"
+                                                onclick="setMax(this, <?php echo e($item->requested_qty); ?>)"
                                                 style="padding:8px 10px; border-radius:8px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; cursor:pointer; font-weight:700; white-space:nowrap; flex-shrink:0; transition:all 0.3s ease;"
                                             >
                                                 Max
                                             </button>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
-                                    @if($item->rejection_reason && $item->status === 'rejected')
+                                    <?php if($item->rejection_reason && $item->status === 'rejected'): ?>
                                         <div style="margin-top:8px; padding:6px 8px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#991b1b; font-size:11px; line-height:1.3;">
-                                            <strong>Reason:</strong> {{ $item->rejection_reason }}
+                                            <strong>Reason:</strong> <?php echo e($item->rejection_reason); ?>
+
                                         </div>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
                             </tr>
-                        @empty
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_2): ?>
                             <tr style="background:linear-gradient(135deg, #f8fafc, #f1f5f9);">
                                 <td colspan="6" style="padding:20px 10px; text-align:center; color:#64748b; font-size:14px;">No request items found for this request.</td>
                             </tr>
-                        @endforelse
+                        <?php endif; ?>
                     </table>
                 </div>
 
-                @if($req->status !== 'ready_to_receive')
+                <?php if($req->status !== 'ready_to_receive'): ?>
                     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
-                        {{-- Save Decision - only show if NOT approved --}}
-                        @if($req->status !== 'approved')
-                            <button class="btn-ghost" type="button" onclick="handleSaveDecision(this.closest('form'), '{{ $req->id }}')">
+                        
+                        <?php if($req->status !== 'approved'): ?>
+                            <button class="btn-ghost" type="button" onclick="handleSaveDecision(this.closest('form'), '<?php echo e($req->id); ?>')">
                                 Save Decision
                             </button>
-                        @endif
+                        <?php endif; ?>
 
-                        {{-- Only show other buttons if NOT pending --}}
-                        @if($req->status !== 'pending')
-                            {{-- Reject Whole --}}
-                            <button class="btn-ghost" type="button" onclick="rejectEntireRequest('{{ $req->id }}')">
+                        
+                        <?php if($req->status !== 'pending'): ?>
+                            
+                            <button class="btn-ghost" type="button" onclick="rejectEntireRequest('<?php echo e($req->id); ?>')">
                                 Reject Whole Request
                             </button>
 
-                            {{-- Ready to Receive --}}
-                            <button class="btn-ghost" type="button" onclick="confirmAction(event, 'ready_to_receive', 'Generate Code', 'Proceed to generate a verification code for the client to claim these items.', '{{ $req->id }}')">
+                            
+                            <button class="btn-ghost" type="button" onclick="confirmAction(event, 'ready_to_receive', 'Generate Code', 'Proceed to generate a verification code for the client to claim these items.', '<?php echo e($req->id); ?>')">
                                 Ready to Receive
                             </button>
-                        @endif
+                        <?php endif; ?>
                     </div>
-                @endif
+                <?php endif; ?>
             </form>
 
-            {{-- ✅ ONLY SHOW RELEASE FORM IF READY TO RECEIVE --}}
-            @if($req->status === 'ready_to_receive')
+            
+            <?php if($req->status === 'ready_to_receive'): ?>
                 <hr style="border:none; border-top:1px solid #e2e8f0; margin:16px 0;">
 
-                <form method="POST" action="{{ route('admin.requests.release', $req->id) }}">
-                    @csrf
-                    @method('PUT')
+                <form method="POST" action="<?php echo e(route('admin.requests.release', $req->id)); ?>">
+                    <?php echo csrf_field(); ?>
+                    <?php echo method_field('PUT'); ?>
 
                     <div style="background:#eff6ff; border:1px solid #2563eb; border-radius:10px; padding:12px; display:flex; gap:10px; align-items:flex-end;">
                         <div style="flex:1; min-width:200px;">
@@ -609,13 +611,13 @@
                         <button class="btn" type="submit" style="padding:10px 16px;">Release</button>
                     </div>
                 </form>
-            @endif
+            <?php endif; ?>
         </div>
     </div>
 
-@empty
+<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
     <div class="muted">No requests found.</div>
-@endforelse
+<?php endif; ?>
 </div>
 
 <!-- Confirmation Modal -->
@@ -694,17 +696,17 @@ document.getElementById('confirmModal')?.addEventListener('click', function(e){
 
 // Live search (AJAX)
 (function(){
-    const searchForm = document.querySelector('form[action="{{ route('requests.index') }}"]');
+    const searchForm = document.querySelector('form[action="<?php echo e(route('requests.index')); ?>"]');
     if(!searchForm) return;
     const searchInput = searchForm.querySelector('input[name="q"]');
     const requestsList = document.getElementById('requests-list');
-    const url = '{{ route('requests.index') }}';
+    const url = '<?php echo e(route('requests.index')); ?>';
     let timer = null;
 
     function fetchResults(q){
         const params = new URLSearchParams();
         params.append('q', q || '');
-        params.append('tab', '{{ $activeTab }}');
+        params.append('tab', '<?php echo e($activeTab); ?>');
 
         const spinner = document.getElementById('search-spinner');
         const noResults = document.getElementById('no-results');
@@ -749,7 +751,7 @@ document.getElementById('confirmModal')?.addEventListener('click', function(e){
         <p style="margin:0 0 20px 0; color:#475569; font-size:14px; line-height:1.5;">Please provide a reason for rejecting this item. This will be visible to the client.</p>
         
         <form id="rejectionReasonForm">
-            @csrf
+            <?php echo csrf_field(); ?>
             <input type="hidden" id="rejectionItemId" name="item_id">
             <input type="hidden" id="rejectionApprovedQty" name="approved_qty">
             
@@ -937,4 +939,6 @@ document.addEventListener('keydown', function(e){
     if(e.key === 'Escape') closeRejectionModal();
 });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH /var/www/resources/views/admin/requests/index.blade.php ENDPATH**/ ?>

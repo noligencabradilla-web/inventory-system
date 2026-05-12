@@ -1,15 +1,13 @@
-@extends('layouts.app')
-
-@php
+<?php
   $brand = 'Inventory System';
   $pageTitle = 'My Requests';
-@endphp
+?>
 
-@section('sidebar')
-    @include('client.sidebar')
-@endsection
+<?php $__env->startSection('sidebar'); ?>
+    <?php echo $__env->make('client.sidebar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php $__env->stopSection(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <style>
     table{ width:100%; border-collapse: collapse; }
     th, td{ 
@@ -193,80 +191,83 @@
     }
 </style>
 
-{{-- Flash message shown in layout; avoid duplicate here --}}
 
-@forelse($requests as $req)
-    @php
+
+<?php $__empty_1 = true; $__currentLoopData = $requests; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $req): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+    <?php
         $status = $req->status; // pending / approved / ready_to_receive / rejected / released
         $code = $req->verification_code;
         $rid = 'req-'.$req->id;
         $requestTotal = $req->items->sum('requested_qty');
         $approvedTotal = $req->items->sum('approved_qty');
-    @endphp
+    ?>
 
     <div class="card">
-        <div class="card-head" onclick="toggleReq('{{ $rid }}')">
+        <div class="card-head" onclick="toggleReq('<?php echo e($rid); ?>')">
             <div style="flex:1;">
                 <div class="title">
-                    Request from <span style="color:#2563eb;">{{ $req->office }}</span>
+                    Request from <span style="color:#2563eb;"><?php echo e($req->office); ?></span>
                     <span class="muted">•</span>
-                    @if($req->member)
-                        <span style="color:#059669;">Member: {{ $req->member->name }}</span>
+                    <?php if($req->member): ?>
+                        <span style="color:#059669;">Member: <?php echo e($req->member->name); ?></span>
                         <span class="muted">•</span>
-                    @endif
-                    <span class="muted">{{ $req->created_at?->format('M d, Y') }}</span>
+                    <?php endif; ?>
+                    <span class="muted"><?php echo e($req->created_at?->format('M d, Y')); ?></span>
                 </div>
                 <div style="margin-top:4px; font-size:12px; color:#475569;">
-                    Total requested: {{ $requestTotal }}
-                    @if($status !== 'pending')
-                        • Approved total: {{ $approvedTotal }}
-                    @endif
+                    Total requested: <?php echo e($requestTotal); ?>
+
+                    <?php if($status !== 'pending'): ?>
+                        • Approved total: <?php echo e($approvedTotal); ?>
+
+                    <?php endif; ?>
                 </div>
 
                 <div style="margin-top:6px;">
                     <span class="muted">Status:</span>
-                    @if($status === 'pending')
+                    <?php if($status === 'pending'): ?>
                         <span class="pill pending">PENDING</span>
-                    @elseif($status === 'approved')
+                    <?php elseif($status === 'approved'): ?>
                         <span class="pill approved">APPROVED</span>
-                    @elseif($status === 'ready_to_receive')
+                    <?php elseif($status === 'ready_to_receive'): ?>
                         <span class="pill approved">READY TO RECEIVE</span>
-                    @elseif($status === 'cancelled')
+                    <?php elseif($status === 'cancelled'): ?>
                         <span class="pill rejected">CANCELLED</span>
-                    @elseif($status === 'rejected')
+                    <?php elseif($status === 'rejected'): ?>
                         <span class="pill rejected">REJECTED</span>
-                    @else
-                        <span class="pill">{{ strtoupper(str_replace('_',' ', $status)) }}</span>
-                    @endif
+                    <?php else: ?>
+                        <span class="pill"><?php echo e(strtoupper(str_replace('_',' ', $status))); ?></span>
+                    <?php endif; ?>
                 </div>
 
-                @if($req->reason)
+                <?php if($req->reason): ?>
                     <div style="margin-top:8px;">
                         <span class="muted">Reason:</span>
                         <div style="margin-top:4px; padding:6px 10px; background:linear-gradient(135deg, #f8fafc, #f1f5f9); border:1px solid #e2e8f0; border-radius:6px; color:#475569; font-size:12px; line-height:1.4;">
-                            {{ $req->reason }}
+                            <?php echo e($req->reason); ?>
+
                         </div>
                     </div>
-                @endif
+                <?php endif; ?>
             </div>
 
             <div style="text-align:right; white-space:nowrap;">
                 <div style="font-weight:900; font-size:12px; margin-bottom:4px;">
-                    Ref. No: <span style="color:#0f172a;">#{{ $req->id }}</span>
+                    Ref. No: <span style="color:#0f172a;">#<?php echo e($req->id); ?></span>
                 </div>
-                @if($code)
+                <?php if($code): ?>
                     <div style="font-weight:900; font-size:18px;">
-                        Code: <span style="color:#0f172a;">{{ $code }}</span>
+                        Code: <span style="color:#0f172a;"><?php echo e($code); ?></span>
                     </div>
                     <div class="muted">Show to admin</div>
-                @else
+                <?php else: ?>
                     <div class="muted">Waiting code</div>
-                @endif
+                <?php endif; ?>
                 <div class="card-toggle" style="margin-top:4px;">Click to expand</div>
             </div>
         </div>
 
-        <div id="{{ $rid }}" class="card-body">
+        <div id="<?php echo e($rid); ?>" class="card-body">
             <div style="overflow-x:auto; border-radius:16px; box-shadow:0 8px 25px rgba(59,130,246,0.15); background:linear-gradient(135deg, #eff6ff, #dbeafe);">
                 <table style="width:100%; border-collapse:collapse;">
                     <tr style="background:linear-gradient(135deg, #3b82f6, #1d4ed8);">
@@ -276,70 +277,71 @@
                         <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#000000; font-size:12px;">Result</th>
                     </tr>
 
-                    @forelse($req->items as $item)
-                        @php
+                    <?php $__empty_2 = true; $__currentLoopData = $req->items; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_2 = false; ?>
+                        <?php
                             $requested = (int) $item->requested_qty;
                             $approved = (int)($item->approved_qty ?? 0);
-                        @endphp
+                        ?>
 
                         <tr style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);">
                             <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                                <div style="font-weight:700; color:#1e40af; font-size:14px;">{{ $item->stock?->id_no ?? '' }}</div>
-                                <div style="color:#64748b; font-size:11px; margin-top:3px;">{{ $item->stock?->description ?? 'N/A' }} • Unit: {{ $item->stock?->unit ?? '—' }}</div>
-                                @if($item->rejection_reason && $item->status === 'rejected')
+                                <div style="font-weight:700; color:#1e40af; font-size:14px;"><?php echo e($item->stock?->id_no ?? ''); ?></div>
+                                <div style="color:#64748b; font-size:11px; margin-top:3px;"><?php echo e($item->stock?->description ?? 'N/A'); ?> • Unit: <?php echo e($item->stock?->unit ?? '—'); ?></div>
+                                <?php if($item->rejection_reason && $item->status === 'rejected'): ?>
                                     <div style="margin-top:6px; padding:6px 8px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#991b1b; font-size:11px; line-height:1.3;">
-                                        <strong>Rejection Reason:</strong> {{ $item->rejection_reason }}
+                                        <strong>Rejection Reason:</strong> <?php echo e($item->rejection_reason); ?>
+
                                     </div>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
-                            <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $requested }}</td>
+                            <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($requested); ?></td>
 
-                            {{-- Approved column --}}
+                            
                             <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">
-                                @if($status === 'pending')
+                                <?php if($status === 'pending'): ?>
                                     <span style="color:#64748b;">—</span>
-                                @else
-                                    <span style="color:#1e40af; font-weight:700;">{{ $approved }}</span>
-                                @endif
+                                <?php else: ?>
+                                    <span style="color:#1e40af; font-weight:700;"><?php echo e($approved); ?></span>
+                                <?php endif; ?>
                             </td>
 
-                            {{-- Result column --}}
+                            
                             <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                                @if($status === 'pending')
+                                <?php if($status === 'pending'): ?>
                                     <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">PENDING</span>
-                                @elseif($status === 'cancelled')
+                                <?php elseif($status === 'cancelled'): ?>
                                     <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fecaca; background:#fef2f2; color:#991b1b;">CANCELLED</span>
-                                @else
-                                    @if($approved > 0)
+                                <?php else: ?>
+                                    <?php if($approved > 0): ?>
                                         <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#065f46;">APPROVED</span>
-                                    @else
+                                    <?php else: ?>
                                         <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fecaca; background:#fef2f2; color:#991b1b;">REJECTED</span>
-                                    @endif
-                                @endif
+                                    <?php endif; ?>
+                                <?php endif; ?>
                             </td>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_2): ?>
                         <tr style="background:linear-gradient(135deg, #f8fafc, #f1f5f9);">
                             <td colspan="6" style="padding:20px 10px; text-align:center; color:#64748b; font-size:14px;">No request items found.</td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </table>
             </div>
             
-            @if($status === 'pending')
+            <?php if($status === 'pending'): ?>
                 <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
-                    <button type="button" class="btn-cancel" onclick="showCancelConfirm({{ $req->id }})">
+                    <button type="button" class="btn-cancel" onclick="showCancelConfirm(<?php echo e($req->id); ?>)">
                         Cancel Request
                     </button>
                 </div>
-            @endif
+            <?php endif; ?>
         </div>
     </div>
 
-@empty
+<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
     <div class="muted">No requests found.</div>
-@endforelse
+<?php endif; ?>
 
 <!-- Cancel Confirmation Modal -->
 <div id="cancelConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:5000; align-items:center; justify-content:center;">
@@ -412,8 +414,8 @@ function submitCancelRequest(){
     if(!pendingCancelRequestId) return;
     
     // Use fetch POST instead of form submission for more reliable handling
-    const token = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-    const url = `{{ url('/client/requests') }}/${pendingCancelRequestId}/cancel`;
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || '<?php echo e(csrf_token()); ?>';
+    const url = `<?php echo e(url('/client/requests')); ?>/${pendingCancelRequestId}/cancel`;
     
     fetch(url, {
         method: 'POST',
@@ -449,4 +451,6 @@ document.addEventListener('keydown', function(e){
     if(e.key === 'Escape') closeCancelConfirm();
 });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH /var/www/resources/views/client/requests/index.blade.php ENDPATH**/ ?>

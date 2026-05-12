@@ -128,21 +128,30 @@ class AccountController extends Controller
             ->whereIn('status', ['on process', 'received'])
             ->get();
 
-        // Aggregate inventory items by stock (same logic as StockController)
+        // Aggregate inventory items by stock (same logic as StockController with accumulation)
         $stockInventoryMap = [];
         
         foreach ($rawApprovedInventory as $item) {
             $stockId = $item->stock->id;
             $myInventory = max(0, ($item->approved_qty ?? 0) - ($item->distributed_qty ?? 0));
             
-            $stockInventoryMap[$stockId] = (object)[
-                'id' => $item->id,
-                'stock' => $item->stock,
-                'approved_qty' => $item->approved_qty,
-                'distributed_qty' => $item->distributed_qty,
-                'my_inventory' => $myInventory,
-                'type' => 'inventory'
-            ];
+            // Check if this stock already exists in the map and accumulate
+            if (isset($stockInventoryMap[$stockId])) {
+                // Add to existing inventory
+                $stockInventoryMap[$stockId]->approved_qty += $item->approved_qty;
+                $stockInventoryMap[$stockId]->distributed_qty += ($item->distributed_qty ?? 0);
+                $stockInventoryMap[$stockId]->my_inventory += $myInventory;
+            } else {
+                // Create new entry
+                $stockInventoryMap[$stockId] = (object)[
+                    'id' => $item->id,
+                    'stock' => $item->stock,
+                    'approved_qty' => $item->approved_qty,
+                    'distributed_qty' => $item->distributed_qty,
+                    'my_inventory' => $myInventory,
+                    'type' => 'inventory'
+                ];
+            }
         }
         
         // Then, add direct request quantities to existing items or create new entries
@@ -513,20 +522,61 @@ class AccountController extends Controller
             abort(403);
         }
 
-        // Check remaining inventory (approved - already distributed)
-        $distributed = $item->distributed_qty ?? 0;
-        $remaining = (int)$item->approved_qty - (int)$distributed;
+        // Check remaining inventory using accumulated logic (same as StockController)
+        $stockId = $item->stock_id;
+        
+        // Get all approved inventory items for this client and stock
+        $allStockItems = StockRequestItem::with('stock')
+            ->whereHas('request', function ($query) use ($item) {
+                $query->where('client_id', $item->request->client_id)
+                      ->whereIn('status', ['approved', 'ready_to_receive', 'released']);
+            })
+            ->where('stock_id', $stockId)
+            ->where('approved_qty', '>', 0)
+            ->get();
+
+        // Calculate accumulated inventory for this stock
+        $totalApproved = 0;
+        $totalDistributed = 0;
+        
+        foreach ($allStockItems as $stockItem) {
+            $totalApproved += $stockItem->approved_qty;
+            $totalDistributed += ($stockItem->distributed_qty ?? 0);
+        }
+        
+        // Add direct requests for this stock
+        $directRequests = Outbound::where('client_id', $item->request->client_id)
+            ->where('stock_id', $stockId)
+            ->where('is_direct_request', true)
+            ->where('approval', 'approved')
+            ->whereIn('status', ['on process', 'received'])
+            ->get();
+            
+        foreach ($directRequests as $directRequest) {
+            $deductedFromDirect = ClientDirectDeduction::where('stock_request_item_id', null)
+                ->whereHas('member', function($query) use ($item) {
+                    $query->where('client_id', $item->request->client_id);
+                })
+                ->where('created_at', '>=', $directRequest->created_at)
+                ->sum('deducted_qty');
+            
+            $totalApproved += $directRequest->total;
+            $totalDistributed += $deductedFromDirect;
+        }
+        
+        $remaining = $totalApproved - $totalDistributed;
+        
         if ($validated['distributed_qty'] > $remaining) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false, 
-                    'message' => 'Not enough inventory available for distribution.'
+                    'message' => "Not enough inventory available for distribution. Available: {$remaining}, Requested: {$validated['distributed_qty']}"
                 ]);
             }
-            return redirect()->route('client.account', ['tab' => 'member-distribution'])->with('error', 'Not enough inventory available for distribution.');
+            return redirect()->route('client.account', ['tab' => 'member-distribution'])->with('error', "Not enough inventory available for distribution. Available: {$remaining}, Requested: {$validated['distributed_qty']}");
         }
 
-        // Create distribution for the member
+        // Create distribution for the member using the correct table structure
         $distribution = ClientMemberDistribution::firstOrNew([
             'member_id' => $member->id,
             'stock_request_item_id' => $item->id,
@@ -534,9 +584,32 @@ class AccountController extends Controller
         $distribution->distributed_qty = ($distribution->distributed_qty ?? 0) + $validated['distributed_qty'];
         $distribution->save();
 
-        // Deduct from My Inventory by updating distributed_qty
-        $item->distributed_qty = ($item->distributed_qty ?? 0) + $validated['distributed_qty'];
-        $item->save();
+        // Deduct from accumulated inventory by updating distributed_qty across multiple items if needed
+        $remainingToDeduct = $validated['distributed_qty'];
+        
+        // Get all available items for this stock, ordered by creation date (FIFO)
+        $availableItems = StockRequestItem::with('stock')
+            ->whereHas('request', function ($query) use ($item) {
+                $query->where('client_id', $item->request->client_id)
+                      ->whereIn('status', ['approved', 'ready_to_receive', 'released']);
+            })
+            ->where('stock_id', $stockId)
+            ->where('approved_qty', '>', 0)
+            ->whereRaw('(approved_qty - COALESCE(distributed_qty, 0)) > 0')
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        foreach ($availableItems as $availableItem) {
+            if ($remainingToDeduct <= 0) break;
+            
+            $availableFromThisItem = (int)$availableItem->approved_qty - (int)($availableItem->distributed_qty ?? 0);
+            $deductFromThisItem = min($availableFromThisItem, $remainingToDeduct);
+            
+            $availableItem->distributed_qty = ($availableItem->distributed_qty ?? 0) + $deductFromThisItem;
+            $availableItem->save();
+            
+            $remainingToDeduct -= $deductFromThisItem;
+        }
 
         if ($request->expectsJson()) {
             return response()->json([

@@ -261,8 +261,14 @@ public function release(\Illuminate\Http\Request $httpRequest, StockRequest $sto
                         'received_by'  => $httpRequest->received_by,
                     ]);
 
-                    // ✅ deduct immediately (THIS is what you want)
+                    // ✅ deduct immediately from main stock
                     $stock->decrement('stock', $approved);
+                    
+                    // ✅ ADD TO CLIENT INVENTORY: Update the StockRequestItem to reflect received quantity
+                    // The item already has approved_qty set from the decision step
+                    // We just need to ensure the status is updated to show it's been received
+                    $item->status = 'released';
+                    $item->save();
                 }
 
                 // ✅ move request out of workflow

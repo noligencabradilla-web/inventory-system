@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ $title ?? 'Inventory System' }}</title>
+    <title><?php echo e($title ?? 'Inventory System'); ?></title>
 
     <style>
     :root{
@@ -881,22 +881,22 @@
 
 <div class="app">
 
-    <aside class="sidebar @if(auth()->user()->role === 'client') client-sidebar @endif" id="sidebar">
+    <aside class="sidebar <?php if(auth()->user()->role === 'client'): ?> client-sidebar <?php endif; ?>" id="sidebar">
         <div class="brand">
             <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 8px;">
                 <img src="/images/brand-logo.png" alt="Logo" style="height: 122; object-fit: contain;">
-                <div class="name" style="text-align: center;">{{ $brand ?? 'Inventory System' }}</div>
+                <div class="name" style="text-align: center;"><?php echo e($brand ?? 'Inventory System'); ?></div>
             </div>
             <div class="role" style="position: relative; text-align: center;">
-                Logged in as: <b>{{ auth()->user()->name ?? 'User' }}</b>
+                Logged in as: <b><?php echo e(auth()->user()->name ?? 'User'); ?></b>
             </div>
         </div>
 
         <nav class="nav">
-            {{-- Put your links here from child pages --}}
-            @yield('sidebar')
+            
+            <?php echo $__env->yieldContent('sidebar'); ?>
 
-            {{-- Sidebar logout tab (shows confirmation + icon) --}}
+            
             <a href="#" class="logout-link" id="sidebar-logout" aria-haspopup="dialog" title="Logout">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 2v10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -907,8 +907,8 @@
         </nav>
 
         <div class="sidebar-footer">
-            <form method="POST" action="{{ route('logout') }}" onsubmit="showLoading('Logging out...')">
-                @csrf
+            <form method="POST" action="<?php echo e(route('logout')); ?>" onsubmit="showLoading('Logging out...')">
+                <?php echo csrf_field(); ?>
                 <button class="logout-btn" type="submit" aria-label="Logout">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 2v10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -922,74 +922,74 @@
     <main class="main">
         <div class="topbar">
             <div>
-                @if(($pageTitle ?? 'Dashboard') === 'Client Portal')
+                <?php if(($pageTitle ?? 'Dashboard') === 'Client Portal'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">Client Portal</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Dashboard</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'Transaction History')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'Transaction History'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">Transaction History</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Records</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'My Inventory')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'My Inventory'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">My Inventory</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Stock items</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'Report')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'Report'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">Report</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Analytics</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'Members')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'Members'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">Members</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">User management</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'Offices')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'Offices'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">Offices</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Subaccounts</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'Account Settings')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'Account Settings'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">Account Settings</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Profile</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'Available Stocks')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'Available Stocks'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">Available Stocks</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Stock catalog</div>
                     </div>
-                @elseif(($pageTitle ?? 'Dashboard') === 'My Requests')
+                <?php elseif(($pageTitle ?? 'Dashboard') === 'My Requests'): ?>
                     <div>
                         <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">My Requests</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400;">Request status</div>
                     </div>
-                @else
-                    <div class="title">{{ $pageTitle ?? 'Dashboard' }}</div>
-                @endif
+                <?php else: ?>
+                    <div class="title"><?php echo e($pageTitle ?? 'Dashboard'); ?></div>
+                <?php endif; ?>
             </div>
             <div style="display:flex; align-items:center; gap:12px;">
-                <div style="color: var(--muted); font-size:12px;">{{ now()->format('M d, Y h:i A') }}</div>
-                @if(auth()->user()->role === 'admin')
-                    @include('partials.top-notifications')
-                @elseif(auth()->user()->role === 'client')
-                    @include('partials.client-notifications')
-                @endif
+                <div style="color: var(--muted); font-size:12px;"><?php echo e(now()->format('M d, Y h:i A')); ?></div>
+                <?php if(auth()->user()->role === 'admin'): ?>
+                    <?php echo $__env->make('partials.top-notifications', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                <?php elseif(auth()->user()->role === 'client'): ?>
+                    <?php echo $__env->make('partials.client-notifications', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                <?php endif; ?>
             </div>
         </div>
 
         <section class="content">
-                @if(session('success'))
-                    <div class="flash-success flash-auto">{{ session('success') }}</div>
-            @endif
-            @if(session('error'))
-                <div class="flash-error">{{ session('error') }}</div>
-            @endif
+                <?php if(session('success')): ?>
+                    <div class="flash-success flash-auto"><?php echo e(session('success')); ?></div>
+            <?php endif; ?>
+            <?php if(session('error')): ?>
+                <div class="flash-error"><?php echo e(session('error')); ?></div>
+            <?php endif; ?>
 
-            @yield('content')
+            <?php echo $__env->yieldContent('content'); ?>
         </section>
     </main>
 
@@ -1141,3 +1141,4 @@ document.addEventListener('DOMContentLoaded', function(){
 
 </body>
 </html>
+<?php /**PATH /var/www/resources/views/layouts/app.blade.php ENDPATH**/ ?>

@@ -13,6 +13,15 @@ return new class extends Migration
     {
         Schema::create('client_members', function (Blueprint $table) {
             $table->id();
+            
+            $table->foreignId('client_id')
+                ->constrained('clients')
+                ->cascadeOnDelete();
+                
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('phone')->nullable();
+            
             $table->timestamps();
         });
     }
