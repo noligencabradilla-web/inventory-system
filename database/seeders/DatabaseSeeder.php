@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
             'role' => 'client',
             'office' => 'Main Office',
         ]);
-        //wala natong subaccount
+        //wala na tong subaccount
         // Create Subaccount User
         $subaccountUser = User::create([
             'name' => 'Subaccount User',

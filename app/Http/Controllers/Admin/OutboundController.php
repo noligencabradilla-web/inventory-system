@@ -10,16 +10,51 @@ use App\Models\StockRequest;
 use App\Models\StockRequestItem;
 use App\Models\UrgentOutboundRecipient;
 use App\Models\ClientMember;
+use Dompdf\Dompdf;
 use Illuminate\Support\Facades\DB;
 
 class OutboundController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $outbounds = Outbound::with(['stock', 'client'])->latest()->get();
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $office = $request->input('office');
+        $search = $request->input('search');
+
+        $query = Outbound::with(['stock', 'client', 'member'])->latest();
+
+        if ($dateFrom) {
+            $query->whereRaw("DATE(COALESCE(deducted_at, created_at)) >= ?", [$dateFrom]);
+        }
+        if ($dateTo) {
+            $query->whereRaw("DATE(COALESCE(deducted_at, created_at)) <= ?", [$dateTo]);
+        }
+        if ($office && $office !== 'all') {
+            $query->where('office', $office);
+        }
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('client', function ($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%");
+                })
+                ->orWhere('office', 'like', "%{$search}%")
+                ->orWhereHas('stock', function ($sub) use ($search) {
+                    $sub->where('description', 'like', "%{$search}%")
+                        ->orWhere('id_no', 'like', "%{$search}%");
+                })
+                ->orWhereHas('member', function ($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $outbounds = $query->get();
         $clients = \App\Models\User::where('role', 'client')->get();
         $members = ClientMember::with('client')->get();
-        return view('admin.outbound.index', compact('outbounds', 'clients', 'members'));
+        $offices = Outbound::whereNotNull('office')->where('office', '<>', '')->distinct()->orderBy('office')->pluck('office');
+
+        return view('admin.outbound.index', compact('outbounds', 'clients', 'members', 'offices', 'dateFrom', 'dateTo', 'office', 'search'));
     }
 
     public function create()
@@ -266,5 +301,65 @@ class OutboundController extends Controller
         $outbound->save();
 
         return back()->with('success', 'Outbound updated.');
+    }
+
+    public function generateReportPdf(Request $request)
+    {
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $office = $request->input('office');
+        $search = $request->input('search');
+
+        $query = Outbound::with(['stock', 'client', 'member'])->latest();
+
+        if ($dateFrom) {
+            $query->whereRaw("DATE(COALESCE(deducted_at, created_at)) >= ?", [$dateFrom]);
+        }
+        if ($dateTo) {
+            $query->whereRaw("DATE(COALESCE(deducted_at, created_at)) <= ?", [$dateTo]);
+        }
+        if ($office && $office !== 'all') {
+            $query->where('office', $office);
+        }
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('client', function ($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%");
+                })
+                ->orWhere('office', 'like', "%{$search}%")
+                ->orWhereHas('stock', function ($sub) use ($search) {
+                    $sub->where('description', 'like', "%{$search}%")
+                        ->orWhere('id_no', 'like', "%{$search}%");
+                })
+                ->orWhereHas('member', function ($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $outbounds = $query->get();
+
+        $summary = [
+            'records' => $outbounds->count(),
+            'total_quantity' => $outbounds->sum('total'),
+        ];
+
+        $pdf = new Dompdf();
+        $pdf->set_option('isRemoteEnabled', true);
+        $pdf->set_option('isHtml5ParserEnabled', true);
+        $pdf->set_option('isFontSubsettingEnabled', true);
+        $pdf->set_option('enablePhp', true);
+        $pdf->set_option('enableJavascript', true);
+        $pdf->setPaper('a4', 'portrait');
+
+        $html = view('admin.outbound-report-pdf', compact('outbounds', 'dateFrom', 'dateTo', 'summary'))->render();
+        $pdf->set_option('chroot', base_path());
+        $pdf->loadHtml($html);
+        $pdf->render();
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="outbound-report.pdf"',
+        ]);
     }
 }

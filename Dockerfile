@@ -44,6 +44,9 @@ RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions sto
 # Install application dependencies
 RUN composer install --no-interaction --no-dev --optimize-autoloader
 
+# Configure PHP-FPM to listen on all interfaces
+RUN sed -i 's/^;listen = 127.0.0.1:9000/listen = 0.0.0.0:9000/' /usr/local/etc/php-fpm.d/www.conf
+
 # Expose port
 EXPOSE 9000
 

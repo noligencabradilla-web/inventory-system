@@ -15,7 +15,9 @@ use App\Models\User;
 use App\Models\ClientMember;
 use App\Models\ClientMemberDistribution;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Dompdf\Dompdf;
 
 class AdminDashboardController extends Controller
 {
@@ -95,6 +97,8 @@ class AdminDashboardController extends Controller
     {
         $q = trim((string)$request->query('q', ''));
         $office = trim((string)$request->query('office', ''));
+        $dateFrom = trim((string)$request->query('date_from', ''));
+        $dateTo = trim((string)$request->query('date_to', ''));
         $type = trim((string)$request->query('type', 'all'));
 
         // Initialize empty collections
@@ -197,7 +201,116 @@ class AdminDashboardController extends Controller
             ->pluck('office')
             ->filter();
 
-        return view('admin.summary', compact('requests', 'urgentOutbounds', 'directRequests', 'inbounds', 'groupedInbounds', 'manualInbounds', 'offices', 'q', 'office', 'type'));
+        $reportData = $this->prepareSummaryReportData($q, $office, $dateFrom, $dateTo);
+
+        return view('admin.summary', array_merge([
+            'requests' => $requests,
+            'urgentOutbounds' => $urgentOutbounds,
+            'directRequests' => $directRequests,
+            'inbounds' => $inbounds,
+            'groupedInbounds' => $groupedInbounds ?? collect(),
+            'manualInbounds' => $manualInbounds ?? collect(),
+            'offices' => $offices,
+            'q' => $q,
+            'office' => $office,
+            'type' => $type,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+        ], $reportData));
+    }
+
+    private function prepareSummaryReportData(string $q, string $office, ?string $dateFrom, ?string $dateTo): array
+    {
+        $start = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : Carbon::now()->startOfMonth();
+        $end = $dateTo ? Carbon::parse($dateTo)->endOfDay() : Carbon::now()->endOfMonth();
+
+        $stockQuery = Stock::query();
+        if ($q !== '') {
+            $stockQuery->where(function ($query) use ($q) {
+                $query->where('id_no', 'like', "%{$q}%")
+                      ->orWhere('description', 'like', "%{$q}%");
+            });
+        }
+
+        $stocks = $stockQuery->orderBy('description')->get();
+
+        $inboundTotals = Inbound::whereBetween('created_at', [$start, $end])
+            ->select('stock_id', DB::raw('SUM(total) as total'))
+            ->groupBy('stock_id')
+            ->pluck('total', 'stock_id');
+
+        $outboundTotals = Outbound::whereNotNull('deducted_at')
+            ->whereBetween('deducted_at', [$start, $end])
+            ->when($office !== '', fn($query) => $query->where('office', $office))
+            ->select('stock_id', DB::raw('SUM(total) as total'))
+            ->groupBy('stock_id')
+            ->pluck('total', 'stock_id');
+
+        $futureInboundTotals = Inbound::where('created_at', '>', $end)
+            ->select('stock_id', DB::raw('SUM(total) as total'))
+            ->groupBy('stock_id')
+            ->pluck('total', 'stock_id');
+
+        $futureOutboundTotals = Outbound::whereNotNull('deducted_at')
+            ->where('deducted_at', '>', $end)
+            ->when($office !== '', fn($query) => $query->where('office', $office))
+            ->select('stock_id', DB::raw('SUM(total) as total'))
+            ->groupBy('stock_id')
+            ->pluck('total', 'stock_id');
+
+        $stockSummaries = $stocks->map(function ($stock) use ($inboundTotals, $outboundTotals, $futureInboundTotals, $futureOutboundTotals) {
+            $currentInbound = (int) ($inboundTotals[$stock->id] ?? 0);
+            $currentOutbound = (int) ($outboundTotals[$stock->id] ?? 0);
+            $futureInbound = (int) ($futureInboundTotals[$stock->id] ?? 0);
+            $futureOutbound = (int) ($futureOutboundTotals[$stock->id] ?? 0);
+
+            $currentStock = (int) $stock->stock;
+            $endingBalance = $currentStock - $futureInbound + $futureOutbound;
+            $startingBalance = $endingBalance - $currentInbound + $currentOutbound;
+            $sum = $startingBalance + $currentInbound;
+
+            return [
+                'item' => $stock->description,
+                'id_no' => $stock->id_no,
+                'starting_balance' => $startingBalance,
+                'inbound' => $currentInbound,
+                'sum' => $sum,
+                'outbound' => $currentOutbound,
+                'ending_balance' => $endingBalance,
+                'unit' => $stock->unit,
+            ];
+        });
+
+        return compact('stocks', 'stockSummaries', 'dateFrom', 'dateTo', 'start', 'end');
+    }
+
+    public function generateSummaryReportPdf(Request $request)
+    {
+        $q = trim((string)$request->query('q', ''));
+        $office = trim((string)$request->query('office', ''));
+        $dateFrom = trim((string)$request->query('date_from', ''));
+        $dateTo = trim((string)$request->query('date_to', ''));
+
+        $reportData = $this->prepareSummaryReportData($q, $office, $dateFrom, $dateTo);
+        $reportData['office'] = $office;
+
+        $pdf = new Dompdf();
+        $pdf->set_option('isRemoteEnabled', true);
+        $pdf->set_option('isHtml5ParserEnabled', true);
+        $pdf->set_option('isFontSubsettingEnabled', true);
+        $pdf->set_option('enablePhp', true);
+        $pdf->set_option('enableJavascript', true);
+        $pdf->setPaper('a4', 'portrait');
+
+        $html = view('admin.summary-report-pdf', $reportData)->render();
+        $pdf->set_option('chroot', base_path());
+        $pdf->loadHtml($html);
+        $pdf->render();
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="admin-summary-report.pdf"',
+        ]);
     }
 
     /**
@@ -442,25 +555,41 @@ class AdminDashboardController extends Controller
             // Convert back to collection
             $inventoryItems = collect(array_values($stockInventoryMap));
 
-            // Get members and their distributions
+            // Get members and their distributions including direct request items
             $members = ClientMember::where('client_id', $client->id)
-                ->with(['distributions.stockRequestItem.stock'])
+                ->with(['distributions.stockRequestItem.stock', 'directDeductions'])
                 ->get()
                 ->map(function($member) {
+                    // Regular distributions
                     $distributedQty = $member->distributions->sum('distributed_qty');
                     $usedQty = \Illuminate\Support\Facades\Schema::hasColumn('client_member_distributions', 'used_qty') 
                         ? $member->distributions->sum('used_qty') 
                         : 0;
-                    $availableQty = $distributedQty - $usedQty;
-                    $usedValue = $member->distributions->sum('used_qty') ?? 0;
+                    
+                    // Direct request items (original ones only, not usage records)
+                    $directDeductions = $member->directDeductions->filter(function ($deduction) {
+                        return $deduction->stock_request_item_id === null && !str_contains($deduction->reason ?? '', 'Used from direct request');
+                    });
+                    $directDistributedQty = $directDeductions->sum('deducted_qty');
+                    
+                    // Usage from direct request items
+                    $directUsedQty = $member->directDeductions->filter(function ($deduction) {
+                        return str_contains($deduction->reason ?? '', 'Used from direct request');
+                    })->sum('deducted_qty');
+                    
+                    // Combined totals
+                    $totalDistributedQty = $distributedQty + $directDistributedQty;
+                    $totalUsedQty = $usedQty + $directUsedQty;
+                    $availableQty = $totalDistributedQty - $totalUsedQty;
+                    $usedValue = $totalUsedQty;
 
                     return (object)[
                         'id' => $member->id,
                         'name' => $member->name,
                         'email' => $member->email,
-                        'distributed_items' => $distributedQty,
+                        'distributed_items' => $totalDistributedQty,
                         'available_items' => max(0, $availableQty),
-                        'used_items' => $usedQty,
+                        'used_items' => $totalUsedQty,
                         'used_value' => $usedValue
                     ];
                 });

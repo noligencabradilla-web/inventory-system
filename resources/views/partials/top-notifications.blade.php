@@ -31,7 +31,7 @@
             // Table might not exist, ignore
         }
         
-        $totalPending = $pendingRequests + $pendingPR + $lowStock + $outStock + $urgentOutbounds + $expiringItems + $recentClients + $failedJobs;
+        $totalPending = $pendingRequests + $pendingPR + $lowStock + $outStock + $urgentOutbounds + $expiringItems + $failedJobs;
     }
 @endphp
 
@@ -204,7 +204,8 @@
                     </a>
                 @endif
 
-                @if($recentClients > 0)
+                {{-- New Client Registrations hidden temporarily --}}
+                {{-- @if($recentClients > 0)
                     <a href="/admin/clients" class="notification-item {{ $recentClients > 0 ? 'unread' : '' }}">
                         <div class="notification-avatar client">
                             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -218,7 +219,7 @@
                         </div>
                         <div class="notification-count">{{ $recentClients }}</div>
                     </a>
-                @endif
+                @endif --}}
 
                 @if($failedJobs > 0)
                     <a href="/admin/system-health" class="notification-item {{ $failedJobs > 0 ? 'unread' : '' }}">

@@ -288,6 +288,25 @@
         background: linear-gradient(135deg, #ffffff, #fafbfc);
         border-top: 1px solid rgba(99, 102, 241, 0.1);
     }
+    .request-table th,
+    .request-table td {
+        padding: 12px 14px;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+        background: transparent;
+    }
+    .request-table th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: #ffffff;
+        font-weight: 700;
+        border-bottom: 2px solid #1e40af;
+    }
+    .request-table tr:last-child td {
+        border-bottom: none;
+    }
     .cart-row{
         display:flex;
         gap:12px;
@@ -496,7 +515,7 @@
 
                     <div style="border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; background: linear-gradient(135deg, #fafbfc, #ffffff);">
                         <div style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
-                            <table style="margin:0; position: sticky; top: 0; background: linear-gradient(135deg, #fafbfc, #ffffff);">
+                            <table class="request-table" style="margin:0; width:100%; border-collapse: collapse;">
                                 <thead>
                                     <tr>
                                         <th>ID No</th>

@@ -91,6 +91,7 @@ Route::prefix('admin')
 
         // Admin summary / transactions
         Route::get('/summary', [AdminDashboardController::class, 'summary'])->name('admin.summary');
+        Route::get('/summary/report/pdf', [AdminDashboardController::class, 'generateSummaryReportPdf'])->name('admin.summary.report.pdf');
 
         // AJAX endpoint for monthly chart analytics
         Route::get('/dashboard/chart-data', [AdminDashboardController::class, 'chartData'])->name('admin.dashboard.chartdata');
@@ -106,7 +107,9 @@ Route::prefix('admin')
         Route::get('/inbound/template', [InboundController::class, 'template'])->name('inbound.template');
         Route::post('/inbound/import', [InboundController::class, 'import'])->name('inbound.import');
         Route::get('/inbound/suggestions', [InboundController::class, 'suggestions'])->name('inbound.suggestions');
+        Route::get('/inbound/report/pdf', [InboundController::class, 'generateReportPdf'])->name('admin.inbound.report.pdf');
         Route::resource('inbound', InboundController::class);
+        Route::get('/outbound/report/pdf', [OutboundController::class, 'generateReportPdf'])->name('admin.outbound.report.pdf');
         Route::resource('outbound', OutboundController::class);
         Route::get('/outbound/search-recipients', [OutboundController::class, 'searchRecipients'])
             ->name('outbound.search-recipients');

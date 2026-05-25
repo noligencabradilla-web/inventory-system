@@ -13,26 +13,56 @@
       
       // Create memberReports using the same logic as Report tab
       $allClientMembers = \App\Models\ClientMember::where('client_id', auth()->id())->get();
+      
+      // Get all ClientMemberDistribution records
       $allDistributions = \App\Models\ClientMemberDistribution::with(['member', 'stockRequestItem.stock'])
           ->whereHas('member', function ($query) {
               $query->where('client_id', auth()->id());
           })->get();
       
-      $distributionsByMember = $allDistributions->groupBy('member_id');
+      // Get all ClientDirectDeduction records (for direct request items)
+      $allDirectDeductions = \App\Models\ClientDirectDeduction::with(['member'])
+          ->whereHas('member', function ($query) {
+              $query->where('client_id', auth()->id());
+          })
+          ->where('stock_request_item_id', null) // Only direct request items
+          ->get();
       
-      $memberReports = $allClientMembers->map(function ($member) use ($distributionsByMember) {
+      // Group distributions by member
+      $distributionsByMember = $allDistributions->groupBy('member_id');
+      $directDeductionsByMember = $allDirectDeductions->groupBy('member_id');
+      
+      $memberReports = $allClientMembers->map(function ($member) use ($distributionsByMember, $directDeductionsByMember) {
           $memberDistributions = $distributionsByMember->get($member->id, collect());
+          $memberDirectDeductions = $directDeductionsByMember->get($member->id, collect());
           
+          // Regular distributions
           $distributedQty = $memberDistributions->sum('distributed_qty');
           $usedQty = \Illuminate\Support\Facades\Schema::hasColumn('client_member_distributions', 'used_qty') ? $memberDistributions->sum('used_qty') : 0;
-          $availableQty = $distributedQty - $usedQty;
+          
+          // Separate original direct request items from usage records
+          $originalDirectItems = $memberDirectDeductions->filter(function ($deduction) {
+              return !str_contains($deduction->reason ?? '', 'Used from direct request');
+          });
+          $usageRecords = $memberDirectDeductions->filter(function ($deduction) {
+              return str_contains($deduction->reason ?? '', 'Used from direct request');
+          });
+          
+          // Original direct request items (count as distributed and available)
+          $directDistributedQty = $originalDirectItems->sum('deducted_qty');
+          $directAvailableQty = $originalDirectItems->sum('deducted_qty');
+          
+          // Combine both types
+          $totalDistributed = $distributedQty + $directDistributedQty;
+          $totalUsed = $usedQty + $usageRecords->sum('deducted_qty'); // Add usage records to used
+          $availableQty = ($distributedQty - $usedQty) + $directAvailableQty; // Original direct items add to available
           
           return [
               'name' => $member->name,
               'email' => $member->email,
-              'distributed_items' => $distributedQty,
+              'distributed_items' => $totalDistributed,
               'available_items' => max(0, $availableQty),
-              'used_items' => $usedQty,
+              'used_items' => $totalUsed,
           ];
       });
   } else {
@@ -620,16 +650,7 @@
                     </label>
                     <select id="deduct_distribution_select" name="distribution_id" required style="width:100%; padding:12px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:#fff; transition:border-color .2s ease;">
                         <option value="">-- select item distribution --</option>
-                        @foreach($clientMembers as $member)
-                            @foreach($member->distributions as $distribution)
-                                @php
-                                    $availableQty = $distribution->distributed_qty - ($distribution->used_qty ?? 0);
-                                @endphp
-                                @if($availableQty > 0)
-                                <option value="{{ $distribution->id }}">{{ $distribution->stockRequestItem->stock->description ?? $distribution->stockRequestItem->stock->name ?? 'Item' }} — Available: {{ $availableQty }}</option>
-                                @endif
-                            @endforeach
-                        @endforeach
+                        <!-- Options will be populated by JavaScript based on selected member -->
                     </select>
                     @error('distribution_id')<span style="color: var(--danger); font-size: 12px;">{{ $message }}</span>@enderror
                 </div>
@@ -825,7 +846,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="report-card">
+                            {{-- Members Inventory card hidden --}}
+                            {{-- <div class="report-card" style="display:none;">
                                 <div class="report-card-header" style="padding:16px;">
                                     <span style="font-size:20px;">👥</span>
                                     <h4 style="margin:0; font-weight:700;">Members Inventory</h4>
@@ -840,7 +862,7 @@
                                         <span class="stat-value text-success" style="background:linear-gradient(135deg, #ecfdf5, #d1fae5); color:#059669; font-weight:700; font-size:18px;">{{ $memberInventoryTotals['total_available'] }}</span>
                                     </div>
                                 </div>
-                            </div>
+                            </div> --}}
                         </div>
                         <div class="report-section">
                             <h4 style="margin:0 0 16px; font-size:18px; color:var(--text); display:flex; align-items:center; gap:8px;">
@@ -927,18 +949,70 @@
                                         @foreach($clientMembers as $member)
                                             @php
                                                 $memberItems = collect();
+                                                
+                                                // Aggregate items by name to avoid duplicates
+                                                $aggregatedItems = [];
+                                                
+                                                // Add regular distribution items
                                                 if($member->distributions->isNotEmpty()) {
                                                     foreach($member->distributions as $distribution) {
                                                         $availableQty = $distribution->distributed_qty - ($distribution->used_qty ?? 0);
                                                         if($availableQty > 0) {
-                                                            $memberItems->push((object)[                                                               
-                                                                'description' => $distribution->stockRequestItem->stock->description ?? 'Unknown Item',
-                                                                'distributed_qty' => $distribution->distributed_qty,
-                                                                'used_qty' => $distribution->used_qty ?? 0,
-                                                                'available_qty' => $availableQty
-                                                            ]);
+                                                            $itemName = $distribution->stockRequestItem->stock->description ?? 'Unknown Item';
+                                                            
+                                                            if(isset($aggregatedItems[$itemName])) {
+                                                                $aggregatedItems[$itemName]['distributed_qty'] += $distribution->distributed_qty;
+                                                                $aggregatedItems[$itemName]['used_qty'] += $distribution->used_qty ?? 0;
+                                                                $aggregatedItems[$itemName]['available_qty'] += $availableQty;
+                                                            } else {
+                                                                $aggregatedItems[$itemName] = [
+                                                                    'description' => $itemName,
+                                                                    'distributed_qty' => $distribution->distributed_qty,
+                                                                    'used_qty' => $distribution->used_qty ?? 0,
+                                                                    'available_qty' => $availableQty
+                                                                ];
+                                                            }
                                                         }
                                                     }
+                                                }
+                                                
+                                                // Add direct deduction items
+                                                if($member->directDeductions->isNotEmpty()) {
+                                                    foreach($member->directDeductions as $deduction) {
+                                                        if($deduction->stock_request_item_id === null) { // Only direct request items
+                                                            // Extract clean item name from reason
+                                                            $itemName = $deduction->reason ?? 'Direct Request Item';
+                                                            
+                                                            // Remove prefixes to get clean item name
+                                                            if(str_contains($itemName, 'Member distribution - ')) {
+                                                                $itemName = str_replace('Member distribution - ', '', $itemName);
+                                                            }
+                                                            if(str_contains($itemName, 'Member inventory deduction - ')) {
+                                                                $itemName = str_replace('Member inventory deduction - ', '', $itemName);
+                                                            }
+                                                            if(str_contains($itemName, 'Used from direct request - ')) {
+                                                                $itemName = str_replace('Used from direct request - ', '', $itemName);
+                                                            }
+                                                            
+                                                            if(isset($aggregatedItems[$itemName])) {
+                                                                $aggregatedItems[$itemName]['distributed_qty'] += $deduction->deducted_qty;
+                                                                $aggregatedItems[$itemName]['used_qty'] += 0; // Direct items are not used yet
+                                                                $aggregatedItems[$itemName]['available_qty'] += $deduction->deducted_qty;
+                                                            } else {
+                                                                $aggregatedItems[$itemName] = [
+                                                                    'description' => $itemName,
+                                                                    'distributed_qty' => $deduction->deducted_qty,
+                                                                    'used_qty' => 0, // Direct items are not used yet
+                                                                    'available_qty' => $deduction->deducted_qty
+                                                                ];
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                // Convert aggregated items back to collection
+                                                foreach($aggregatedItems as $item) {
+                                                    $memberItems->push((object)$item);
                                                 }
                                             @endphp
                                             
@@ -1038,7 +1112,7 @@
                             <tr style="background:linear-gradient(135deg, #3b82f6, #1d4ed8);">
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#374151; font-size:12px; background:#f8fafc;">Member Name</th>
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#374151; font-size:12px; background:#f8fafc;">Email</th>
-                                <th style="padding:12px 10px; text-align:right; border-bottom:2px solid #1e40af; font-weight:700; color:#374151; font-size:12px; background:#f8fafc;">Distributed Items</th>
+                                <th style="padding:12px 10px; text-align:right; border-bottom:2px solid #1e40af; font-weight:700; color:#374151; font-size:12px; background:#f8fafc;">Item list</th>
                                 <th style="padding:12px 10px; text-align:right; border-bottom:2px solid #1e40af; font-weight:700; color:#374151; font-size:12px; background:#f8fafc;">Items Left</th>
                                 <th style="padding:12px 10px; text-align:right; border-bottom:2px solid #1e40af; font-weight:700; color:#374151; font-size:12px; background:#f8fafc;">Used Items</th>
                                 <th style="padding:12px 10px; text-align:center; border-bottom:2px solid #1e40af; font-weight:700; color:#374151; font-size:12px; background:#f8fafc;">Actions</th>
@@ -1053,7 +1127,8 @@
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; font-weight:700; color:#1e40af; font-size:14px;">{{ $memberReport['name'] }}</td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-size:13px;">{{ $memberReport['email'] }}</td>
                                     <td style="padding:14px 10px; text-align:right; border-bottom:1px solid #e0e7ff; color:#1e40af; font-weight:700;">
-                                    {{ $memberReport['distributed_items'] }}
+                                    {{-- Number hidden --}}
+                                    {{-- {{ $memberReport['distributed_items'] }} --}}
                                     @if($memberReport['distributed_items'] > 0)
                                         <div style="position:relative; display:inline-block; margin-left:8px;">
                                             <button 
@@ -1063,7 +1138,7 @@
                                                 onmouseover="this.style.background='#f1f5f9'"
                                                 onmouseout="this.style.background='none'"
                                             >
-                                                ⋯
+                                                show
                                             </button>
                                         </div>
                                     @endif
@@ -1248,27 +1323,42 @@
                     }
                 }
                 
-                // Add direct deductions
+                // Add direct request items as available items
                 if($currentMember && $currentMember->directDeductions->count() > 0) {
                     foreach($currentMember->directDeductions as $deduction) {
-                        $itemName = $deduction->stockRequestItem->stock->description ?? 'Item';
-                        
-                        if($allItems->has($itemName)) {
-                            // Update existing item
-                            $existing = $allItems->get($itemName);
-                            $existing->deducted_qty += $deduction->deducted_qty;
-                            $existing->has_deducted = true;
-                        } else {
-                            // Add new item
-                            $allItems->put($itemName, (object)[
-                                'name' => $itemName,
-                                'distributed_qty' => 0,
-                                'used_qty' => 0,
-                                'available_qty' => 0,
-                                'deducted_qty' => $deduction->deducted_qty,
-                                'has_distributed' => false,
-                                'has_deducted' => true
-                            ]);
+                        if($deduction->stock_request_item_id === null) { // Only direct request items
+                            $itemName = $deduction->reason ?? 'Direct Request Item';
+                            
+                            // Skip the specific item that needs to be removed
+                            if($itemName === 'Used from direct request - Member distribution - Binder Arch Folder / Document File - Cover, Blue') {
+                                continue;
+                            }
+                            
+                            // Clean up item name by removing prefixes
+                            if(str_contains($itemName, '"Member distribution" - ')) {
+                                $itemName = str_replace('"Member distribution" - ', '', $itemName);
+                            }
+                            if(str_contains($itemName, 'Member distribution - ')) {
+                                $itemName = str_replace('Member distribution - ', '', $itemName);
+                            }
+                            
+                            if($allItems->has($itemName)) {
+                                // Update existing item
+                                $existing = $allItems->get($itemName);
+                                $existing->distributed_qty += $deduction->deducted_qty;
+                                $existing->available_qty += $deduction->deducted_qty;
+                            } else {
+                                // Add new item as available
+                                $allItems->put($itemName, (object)[
+                                    'name' => $itemName,
+                                    'distributed_qty' => $deduction->deducted_qty,
+                                    'used_qty' => 0,
+                                    'available_qty' => $deduction->deducted_qty,
+                                    'deducted_qty' => 0,
+                                    'has_distributed' => true,
+                                    'has_deducted' => false
+                                ]);
+                            }
                         }
                     }
                 }
@@ -1556,13 +1646,92 @@ function openDeductModal(memberId, memberName, availableQty) {
     const members = @json($clientMembers);
     const member = members.find(m => m.id == memberId);
     
-    if (member && member.distributions) {
-        member.distributions.forEach(distribution => {
-            const availableQty = distribution.distributed_qty - (distribution.used_qty || 0);
-            if (availableQty > 0) {
+    if (member) {
+        // Use the same calculation as Member List table for consistency
+        const aggregatedItems = new Map();
+        
+        // Get the member report data that matches the Member List table
+        const memberReports = @json($memberReports);
+        const currentMemberReport = memberReports.find(report => report.name === member.name);
+        
+        if (currentMemberReport && currentMemberReport.available_items > 0) {
+            // Aggregate items from the member's actual distributions using the same logic as member reports
+            if (member.distributions) {
+                member.distributions.forEach(distribution => {
+                    const availableQty = distribution.distributed_qty - (distribution.used_qty || 0);
+                    if (availableQty > 0) {
+                        const itemName = distribution.stock_request_item?.stock?.description || distribution.stock_request_item?.stock?.name || 'Item';
+                        
+                        if (aggregatedItems.has(itemName)) {
+                            const existing = aggregatedItems.get(itemName);
+                            existing.availableQty += availableQty;
+                            existing.distributionIds.push(distribution.id);
+                        } else {
+                            aggregatedItems.set(itemName, {
+                                name: itemName,
+                                availableQty: availableQty,
+                                distributionIds: [distribution.id],
+                                directIds: [],
+                                type: 'regular'
+                            });
+                        }
+                    }
+                });
+            }
+            
+            // Add direct request items (original ones only, not usage records)
+            if (member.direct_deductions) {
+                member.direct_deductions.forEach(deduction => {
+                    if (deduction.stock_request_item_id === null && !deduction.reason?.includes('Used from direct request')) {
+                        let itemName = deduction.reason || 'Direct Request Item';
+                        
+                        // Clean up the item name
+                        if (itemName.includes('Member distribution - ')) {
+                            itemName = itemName.replace('Member distribution - ', '');
+                        }
+                        if (itemName.includes('Member inventory deduction - ')) {
+                            itemName = itemName.replace('Member inventory deduction - ', '');
+                        }
+                        
+                        if (aggregatedItems.has(itemName)) {
+                            const existing = aggregatedItems.get(itemName);
+                            existing.availableQty += deduction.deducted_qty;
+                            existing.directIds = existing.directIds || [];
+                            existing.directIds.push(deduction.id);
+                        } else {
+                            aggregatedItems.set(itemName, {
+                                name: itemName,
+                                availableQty: deduction.deducted_qty,
+                                distributionIds: [],
+                                directIds: [deduction.id],
+                                type: 'direct'
+                            });
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Create options from aggregated items
+        aggregatedItems.forEach((item, itemName) => {
+            // Show all available items from member regardless of quantity
+            if (item.availableQty > 0) {
                 const option = document.createElement('option');
-                option.value = distribution.id;
-                option.textContent = `${distribution.stock_request_item?.stock?.description || distribution.stock_request_item?.stock?.name || 'Item'} — Available: ${availableQty}`;
+                
+                // If we have both regular and direct items, prioritize regular distribution for deduction
+                if (item.distributionIds && item.distributionIds.length > 0) {
+                    option.value = item.distributionIds[0];
+                } else if (item.directIds && item.directIds.length > 0) {
+                    option.value = `direct_${item.directIds[0]}`;
+                }
+                
+                // Store the item data for reference during form submission
+                option.dataset.itemName = itemName;
+                option.dataset.availableQty = item.availableQty;
+                option.dataset.hasRegular = item.distributionIds && item.distributionIds.length > 0;
+                option.dataset.hasDirect = item.directIds && item.directIds.length > 0;
+                
+                option.textContent = `${itemName} — Available: ${item.availableQty}`;
                 distributionSelect.appendChild(option);
             }
         });

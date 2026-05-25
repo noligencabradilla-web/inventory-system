@@ -55,10 +55,11 @@
         background:linear-gradient(135deg, rgba(37,99,235,.05), rgba(99,102,241,.02));
         border-bottom:1px solid var(--line);
         display:flex;
-        justify-content:space-between;
-        gap:12px;
+        justify-content:center;
+        align-items:center;
         cursor:pointer;
         transition: all 0.3s ease;
+        position:relative;
     }
     .ob-card:hover .ob-header{
         background:linear-gradient(135deg, rgba(37,99,235,.08), rgba(99,102,241,.04));
@@ -70,6 +71,11 @@
         font-size:16px;
         color:var(--text);
         margin:0;
+        position:relative;
+        left:auto;
+        top:auto;
+        transform:none;
+        white-space:nowrap;
     }
     .ob-sub{
         color:var(--muted);
@@ -78,6 +84,10 @@
     }
 
     .ob-header-right{
+        position:absolute;
+        right:16px;
+        top:50%;
+        transform:translateY(-50%);
         text-align:right;
         display:flex;
         flex-direction:column;
@@ -191,6 +201,40 @@
         margin-bottom:20px;
     }
 
+    .report-filters{
+        display:flex;
+        flex-wrap:wrap;
+        gap:12px;
+        align-items:flex-end;
+        margin-bottom:20px;
+    }
+
+    .report-filters label{
+        display:block;
+        margin-bottom:6px;
+        font-size:13px;
+        color:var(--text);
+        font-weight:600;
+    }
+
+    .report-filters input[type="date"]{
+        width:100%;
+        min-width:180px;
+        padding:10px 14px;
+        border:1px solid var(--line);
+        border-radius:8px;
+        background:#fff;
+        font-size:14px;
+        color:var(--text);
+    }
+
+    .report-filters .report-actions{
+        display:flex;
+        flex-wrap:wrap;
+        gap:10px;
+        align-items:center;
+    }
+
     .search-input{
         width:100%;
         max-width:400px;
@@ -271,9 +315,35 @@
 
 {{-- Outbound-specific notification button removed to avoid duplicate notifications. Main notifications partial is used instead. --}}
 
-<div class="search-filter-wrap">
-    <input type="text" id="searchInput" class="search-input" placeholder="Search by client, office, or item...">
-</div>
+<form method="get" action="{{ route('outbound.index') }}">
+    <div class="search-filter-wrap">
+        <input type="text" id="searchInput" name="search" class="search-input" value="{{ old('search', request('search')) }}" placeholder="Search by client, office, or item...">
+    </div>
+
+    <div class="report-filters">
+        <div>
+            <label for="date_from">Date From</label>
+            <input type="date" id="date_from" name="date_from" value="{{ old('date_from', $dateFrom ?? request('date_from')) }}">
+        </div>
+        <div>
+            <label for="date_to">Date To</label>
+            <input type="date" id="date_to" name="date_to" value="{{ old('date_to', $dateTo ?? request('date_to')) }}">
+        </div>
+        <div>
+            <label for="office">Office</label>
+            <select id="office" name="office" style="width:100%; min-width:180px; padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--text); font-size:14px;">
+                <option value="all" {{ empty($office ?? request('office')) || ($office ?? request('office')) === 'all' ? 'selected' : '' }}>All Offices</option>
+                @foreach($offices as $officeOption)
+                    <option value="{{ $officeOption }}" {{ ($office ?? request('office')) === $officeOption ? 'selected' : '' }}>{{ $officeOption }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="report-actions">
+            <button type="submit" class="btn-link">Apply</button>
+            <a href="{{ route('admin.outbound.report.pdf', array_filter(request()->only(['search','date_from','date_to','office']))) }}" class="btn-link" style="background:var(--blue); color:#fff; border:none;">Download PDF</a>
+        </div>
+    </div>
+</form>
 
 @php
     // Group outbounds by date first, then by client_id and office
@@ -283,10 +353,6 @@
 @endphp
 
 @forelse($groupedByDate as $dateKey => $dateGroup)
-    <h3 style="margin-top:20px; margin-bottom:12px; color:var(--text); font-size:16px; font-weight:700;">
-        {{ $dateKey !== 'No Date' ? \Carbon\Carbon::parse($dateKey)->format('F d, Y') : 'No Date' }}
-    </h3>
-
     @php
         // Group by client and office within each date
         $grouped = $dateGroup->groupBy(function($item) {
@@ -306,16 +372,13 @@
         <div class="ob-card" data-client="{{ strtolower($clientName) }}" data-office="{{ strtolower($clientOffice) }}">
             <div class="ob-header" onclick="toggleOb('{{ $obid }}')">
                 <div style="flex:1;">
-                    <div class="ob-title">{{ $clientName }}</div>
-                    <div class="ob-sub">{{ $clientOffice }} • {{ $group->count() }} item{{ $group->count() !== 1 ? 's' : '' }}</div>
+                    <div class="ob-title">{{ $clientOffice }}</div>
                 </div>
 
                 <div class="ob-header-right">
                     <div class="ob-count" style="text-align:right;">
-                        <div class="ob-date" style="font-weight:700;">{{ $groupDate }}</div>
                         <div style="font-size:13px;color:var(--muted);">{{ $group->count() }} item{{ $group->count() !== 1 ? 's' : '' }}</div>
                     </div>
-                    <div class="ob-toggle">Click to expand</div>
                 </div>
             </div>
 
@@ -328,10 +391,11 @@
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px;">Description</th>
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:100px;">Unit</th>
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:100px;">Quantity</th>
+                                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:120px;">Requestor</th>
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:120px;">Approval</th>
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:120px;">Status</th>
                                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:140px;">Received By</th>
-                                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:140px;">Time</th>
+                                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:140px;">Date</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -360,6 +424,7 @@
                                     </td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->stock?->unit ?? '—' }}</td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->total ?? '—' }}</td>
+                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $memberName }}</td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
                                         @if($approval === 'approved')
                                             <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;">{{ ucfirst($approval) }}</span>
@@ -383,32 +448,11 @@
                                             <span style="color:#9ca3af;">—</span>
                                         @endif
                                     </td>
-                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->deducted_at?->format('h:i A') ?? $row->created_at?->format('h:i A') ?? '—' }}</td>
+                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->deducted_at?->format('M d, Y') ?? $row->created_at?->format('M d, Y') ?? '—' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
-                </div>
-
-                <div class="ob-summary">
-                    <div class="ob-summary-grid">
-                        <div class="ob-summary-item">
-                            <span class="ob-summary-label">Client Name</span>
-                            <span class="ob-summary-value">{{ $clientName }}</span>
-                        </div>
-                        <div class="ob-summary-item">
-                            <span class="ob-summary-label">Office/Department</span>
-                            <span class="ob-summary-value">{{ $clientOffice }}</span>
-                        </div>
-                        <div class="ob-summary-item">
-                            <span class="ob-summary-label">Total Items</span>
-                            <span class="ob-summary-value">{{ $group->count() }}</span>
-                        </div>
-                        <div class="ob-summary-item">
-                            <span class="ob-summary-label">Total Quantity</span>
-                            <span class="ob-summary-value">{{ $group->sum('total') }}</span>
-                        </div>
-                                            </div>
                 </div>
             </div>
         </div>

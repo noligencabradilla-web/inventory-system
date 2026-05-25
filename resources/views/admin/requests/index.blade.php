@@ -27,24 +27,26 @@
 <style>
     .tabs{ 
         display:flex; 
-        gap:8px; 
+        gap:12px; 
         flex-wrap:wrap; 
         margin-bottom:20px; 
-        padding:16px 0;
-        border-bottom:2px solid #e2e8f0;
-        background:linear-gradient(135deg, #fafbfc 0%, rgba(37,99,235,0.02) 100%);
+        padding:16px; 
+        border:1px solid #cbd5e1;
+        border-radius:18px;
+        background:#ffffff;
+        box-shadow:0 10px 30px rgba(15,23,42,0.08);
     }
     .tab{
         display:flex; 
         align-items:center; 
         gap:10px;
-        padding:12px 20px; 
-        border-radius:12px; 
+        padding:14px 22px; 
+        border-radius:14px; 
         text-decoration:none;
-        background:linear-gradient(135deg, #ffffff, #f8fafc); 
-        border:2px solid transparent;
-        color:#64748b;
-        font-weight:600; 
+        background:#f8fafc; 
+        border:1px solid transparent;
+        color:#334155;
+        font-weight:700; 
         box-shadow:0 4px 12px rgba(15,23,42,.08);
         transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         position:relative;
@@ -106,12 +108,12 @@
         border-radius:999px; 
         font-size:11px; 
         font-weight:700;
-        border:1px solid rgba(255,255,255,0.3);
-        background:linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.05));
-        color:#ffffff;
+        border:1px solid rgba(37,99,235,0.15);
+        background:rgba(37,99,235,0.12);
+        color:#1d4ed8;
         min-width:20px;
         text-align:center;
-        box-shadow:0 2px 4px rgba(239,68,68,0.2);
+        box-shadow:0 2px 4px rgba(15,23,42,0.08);
     }
 
     /* Request card / header / expanded state */

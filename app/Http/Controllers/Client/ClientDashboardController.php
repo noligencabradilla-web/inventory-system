@@ -121,6 +121,8 @@ class ClientDashboardController extends Controller
         // Initialize empty collections
         $requests = collect();
         $directDeductions = collect();
+        $memberDistributions = collect();
+        $distributionDirectRequests = collect();
         $directRequests = collect();
         $urgentOutbounds = collect();
 
@@ -138,13 +140,41 @@ class ClientDashboardController extends Controller
 
         if ($type === 'all' || $type === 'deduction') {
             $directDeductionsQuery = ClientDirectDeduction::with(['stockRequestItem.stock', 'member'])
-                ->where('client_id', Auth::id());
+                ->where('client_id', Auth::id())
+                ->where(function ($query) {
+                    $query->whereNotNull('stock_request_item_id')
+                        ->orWhere('reason', 'not like', 'Member distribution - %');
+                });
 
             if ($memberId !== '') {
                 $directDeductionsQuery->where('member_id', $memberId);
             }
 
             $directDeductions = $directDeductionsQuery->latest()->get();
+        }
+
+        if ($type === 'all' || $type === 'distribution') {
+            $memberDistributionsQuery = \App\Models\ClientMemberDistribution::with(['stockRequestItem.stock', 'member'])
+                ->whereHas('member', function ($query) {
+                    $query->where('client_id', Auth::id());
+                });
+
+            if ($memberId !== '') {
+                $memberDistributionsQuery->where('member_id', $memberId);
+            }
+
+            $memberDistributions = $memberDistributionsQuery->latest()->get();
+
+            $distributionDirectRequestsQuery = ClientDirectDeduction::with(['member'])
+                ->where('client_id', Auth::id())
+                ->whereNull('stock_request_item_id')
+                ->where('reason', 'like', 'Member distribution - %');
+
+            if ($memberId !== '') {
+                $distributionDirectRequestsQuery->where('member_id', $memberId);
+            }
+
+            $distributionDirectRequests = $distributionDirectRequestsQuery->latest()->get();
         }
 
         if ($type === 'all' || $type === 'direct') {
@@ -189,6 +219,8 @@ class ClientDashboardController extends Controller
             'counts' => $counts,
             'requests' => $requests,
             'directDeductions' => $directDeductions,
+            'memberDistributions' => $memberDistributions,
+            'distributionDirectRequests' => $distributionDirectRequests,
             'directRequests' => $directRequests,
             'urgentOutbounds' => $urgentOutbounds,
             'clientMembers' => $clientMembers,
@@ -334,16 +366,56 @@ class ClientDashboardController extends Controller
             })
             ->get();
 
-        $usageStats = $memberDistributions->groupBy('member_id')->map(function ($distributions) {
-            return [
-                'member_id' => $distributions->first()->member_id,
+        // Get direct request usage records (not original direct items)
+        $directUsageRecords = ClientDirectDeduction::with(['member'])
+            ->where('client_id', Auth::id())
+            ->where('stock_request_item_id', null) // Only direct request items
+            ->where(function($query) {
+                $query->where('reason', 'like', '%Used from direct request%')
+                      ->orWhere('reason', 'like', '%Member inventory deduction%');
+            })
+            ->get();
+
+        // Combine usage data from both sources
+        $combinedUsageData = [];
+        
+        // Process regular distributions
+        foreach ($memberDistributions->groupBy('member_id') as $memberId => $distributions) {
+            $combinedUsageData[$memberId] = [
+                'member_id' => $memberId,
                 'distribution_count' => $distributions->count(),
                 'total_distributed_qty' => $distributions->sum('distributed_qty'),
                 'total_used_qty' => $distributions->sum('used_qty'),
                 'total_used_value' => $distributions->sum('used_qty') ?? 0,
                 'last_activity' => $distributions->max('created_at'),
             ];
-        })->sortByDesc('total_used_qty');
+        }
+        
+        // Add direct usage records
+        foreach ($directUsageRecords->groupBy('member_id') as $memberId => $directUsages) {
+            if (isset($combinedUsageData[$memberId])) {
+                // Add to existing member data
+                $combinedUsageData[$memberId]['total_used_qty'] += $directUsages->sum('deducted_qty');
+                $combinedUsageData[$memberId]['total_used_value'] += $directUsages->sum('deducted_qty');
+                // Update last activity if direct usage is more recent
+                $directLastActivity = $directUsages->max('created_at');
+                if ($directLastActivity > $combinedUsageData[$memberId]['last_activity']) {
+                    $combinedUsageData[$memberId]['last_activity'] = $directLastActivity;
+                }
+            } else {
+                // Create new entry for member with only direct usage
+                $combinedUsageData[$memberId] = [
+                    'member_id' => $memberId,
+                    'distribution_count' => 0,
+                    'total_distributed_qty' => 0,
+                    'total_used_qty' => $directUsages->sum('deducted_qty'),
+                    'total_used_value' => $directUsages->sum('deducted_qty'),
+                    'last_activity' => $directUsages->max('created_at'),
+                ];
+            }
+        }
+
+        $usageStats = collect($combinedUsageData)->sortByDesc('total_used_qty');
 
         // Combine member data with performance metrics
         $performanceData = $clientMembers->map(function ($member) use ($requestFrequency, $usageStats) {

@@ -555,10 +555,28 @@
 })();
 </script>
 
+<div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:flex-end; margin-bottom:20px;">
+    <form method="GET" action="{{ route('inbound.index') }}" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+            <div style="display:flex; flex-direction:column; min-width:160px;">
+                <label for="date_from" style="font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">From Date</label>
+                <input type="date" id="date_from" name="date_from" value="{{ request('date_from') }}" style="padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; background:#ffffff; min-width:160px;">
+            </div>
+            <div style="display:flex; flex-direction:column; min-width:160px;">
+                <label for="date_to" style="font-size:12px; font-weight:600; color:#334155; margin-bottom:4px;">To Date</label>
+                <input type="date" id="date_to" name="date_to" value="{{ request('date_to') }}" style="padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; background:#ffffff; min-width:160px;">
+            </div>
+        </div>
+
+        <button type="submit" class="btn-submit" style="padding:10px 16px; font-size:13px; background:#3b82f6; color:#ffffff; border:none; border-radius:10px; cursor:pointer;">Filter</button>
+        <a href="{{ route('admin.inbound.report.pdf') }}?{{ http_build_query(request()->only(['date_from', 'date_to'])) }}" class="btn-submit" style="padding:10px 16px; font-size:13px; background:#10b981; color:#ffffff; border:none; border-radius:10px; text-decoration:none; display:inline-flex; align-items:center;">Download PDF</a>
+    </form>
+</div>
+
 <!-- Search Bar -->
 <div style="margin-bottom:20px;">
     <div style="position:relative; max-width:400px;">
-        <input type="text" id="inboundSearchInput" placeholder="Search by Stock ID, Description, Unit, Quantity, or Category..." style="width:100%; padding:12px 14px 12px 45px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); outline:none;">
+        <input type="text" id="inboundSearchInput" placeholder="Search by Stock ID, Description, Unit, Quantity, or Category..." style="width:100%; padding:12px 14px 12px 45px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); outline:none;" value="{{ request('q') }}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); pointer-events:none;">
             <circle cx="11" cy="11" r="8"></circle>
             <path d="m21 21-6.98-6.98a2 2 0 0 1-2.82 0-5.64a2 2 0 0 1 2.82 0 5.64z"></path>
@@ -567,32 +585,34 @@
 </div>
 
 <div style="overflow-x:auto; border-radius:16px; box-shadow:0 8px 25px rgba(59,130,246,0.15); background:linear-gradient(135deg, #eff6ff, #dbeafe);">
-    <table style="width:100%; border-collapse:collapse;">
+    <table style="width:100%; border-collapse:collapse; font-family:Inter, system-ui, sans-serif;">
         <thead>
             <tr style="background:linear-gradient(135deg, #3b82f6, #1d4ed8);">
-                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:160px;">Stock ID</th>
-                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px;">Description</th>
-                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:100px;">Unit</th>
-                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:100px;">Quantity</th>
-                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:160px;">Category</th>
+                <th style="padding:12px 10px; text-align:left; border:1px solid #1e40af; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:140px;">Stock ID</th>
+                <th style="padding:12px 10px; text-align:left; border:1px solid #1e40af; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:240px;">Description</th>
+                <th style="padding:12px 10px; text-align:left; border:1px solid #1e40af; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:90px;">Unit</th>
+                <th style="padding:12px 10px; text-align:left; border:1px solid #1e40af; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:90px;">Quantity</th>
+                <th style="padding:12px 10px; text-align:left; border:1px solid #1e40af; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:160px;">Category</th>
+                <th style="padding:12px 10px; text-align:left; border:1px solid #1e40af; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:140px;">Date</th>
             </tr>
         </thead>
         <tbody>
             @forelse($inbounds as $row)
-                <tr style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);">
-                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
+                <tr style="border-bottom:1px solid #e0e7ff; background:#ffffff;">
+                    <td style="padding:14px 10px; border:1px solid #e0e7ff;">
                         <div style="font-weight:700; color:#1e40af; font-size:14px;">{{ $row->id_no ?? '—' }}</div>
                     </td>
-                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                        <div style="color:#64748b; font-size:14px;">{{ $row->description ?? '—' }}</div>
+                    <td style="padding:14px 10px; border:1px solid #e0e7ff;">
+                        <div style="color:#334155; font-size:14px;">{{ $row->description ?? '—' }}</div>
                     </td>
-                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->unit ?? 'pcs' }}</td>
-                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->total ?? 0 }}</td>
-                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#64748b; font-size:14px;">{{ $row->category_name ?? '—' }}</td>
+                    <td style="padding:14px 10px; border:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->unit ?? 'pcs' }}</td>
+                    <td style="padding:14px 10px; border:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->total ?? 0 }}</td>
+                    <td style="padding:14px 10px; border:1px solid #e0e7ff; color:#475569; font-size:14px;">{{ $row->category_name ?? '—' }}</td>
+                    <td style="padding:14px 10px; border:1px solid #e0e7ff; color:#475569; font-size:14px;">{{ \Carbon\Carbon::parse($row->created_at)->format('M d, Y') }}</td>
                 </tr>
             @empty
                 <tr style="background:linear-gradient(135deg, #f8fafc, #f1f5f9);">
-                    <td colspan="5" style="padding:20px 10px; text-align:center; color:#64748b; font-size:14px;">No inbound records yet.</td>
+                    <td colspan="6" style="padding:20px 10px; text-align:center; color:#64748b; font-size:14px;">No inbound records yet.</td>
                 </tr>
             @endforelse
         </tbody>

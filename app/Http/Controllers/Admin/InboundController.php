@@ -6,24 +6,37 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Inbound;
 use App\Models\Stock;
+use Dompdf\Dompdf;
 
 class InboundController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // Return merged inbound totals grouped by stock (so identical items appear once)
-        $inbounds = \DB::table('inbounds')
+        $dateFrom = $request->query('date_from');
+        $dateTo = $request->query('date_to');
+
+        $inboundsQuery = \DB::table('inbounds')
             ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
             ->leftJoin('categories', 'stocks.category_id', '=', 'categories.id')
             ->select(
                 'stocks.id_no',
                 'stocks.description',
                 'stocks.unit',
-                \DB::raw('SUM(inbounds.total) as total'),
-                'categories.name as category_name'
-            )
-            ->groupBy('stocks.id_no', 'stocks.description', 'stocks.unit', 'categories.name')
-            ->orderBy('stocks.id_no')
+                'inbounds.total',
+                'categories.name as category_name',
+                'inbounds.created_at'
+            );
+
+        if ($dateFrom) {
+            $inboundsQuery->whereDate('inbounds.created_at', '>=', $dateFrom);
+        }
+
+        if ($dateTo) {
+            $inboundsQuery->whereDate('inbounds.created_at', '<=', $dateTo);
+        }
+
+        $inbounds = $inboundsQuery
+            ->orderByDesc('inbounds.created_at')
             ->get();
 
         return view('admin.inbound.index', compact('inbounds'));
@@ -46,11 +59,63 @@ class InboundController extends Controller
 
         // update stock
         $stock = Stock::find($request->stock_id);
-        $stock->total += $request->total;
-        $stock->stock += $request->total;
-        $stock->save();
+        $stock->increment('total', $request->total);
+        $stock->increment('stock', $request->total);
 
         return redirect()->route('inbound.index')->with('success', 'Inbound added and stock updated.');
+    }
+
+    public function generateReportPdf(Request $request)
+    {
+        $dateFrom = $request->query('date_from');
+        $dateTo = $request->query('date_to');
+
+        $inboundsQuery = \DB::table('inbounds')
+            ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
+            ->leftJoin('categories', 'stocks.category_id', '=', 'categories.id')
+            ->select(
+                'stocks.id_no',
+                'stocks.description',
+                'stocks.unit',
+                'inbounds.total',
+                'categories.name as category_name',
+                'inbounds.created_at'
+            );
+
+        if ($dateFrom) {
+            $inboundsQuery->whereDate('inbounds.created_at', '>=', $dateFrom);
+        }
+
+        if ($dateTo) {
+            $inboundsQuery->whereDate('inbounds.created_at', '<=', $dateTo);
+        }
+
+        $inbounds = $inboundsQuery
+            ->orderByDesc('inbounds.created_at')
+            ->get();
+
+        $summary = [
+            'records' => $inbounds->count(),
+            'total_quantity' => $inbounds->sum('total'),
+        ];
+
+        $pdf = new Dompdf();
+        $pdf->set_option('isRemoteEnabled', true);
+        $pdf->set_option('isHtml5ParserEnabled', true);
+        $pdf->set_option('isFontSubsettingEnabled', true);
+        $pdf->set_option('enablePhp', true);
+        $pdf->set_option('enableJavascript', true);
+        $pdf->setPaper('a4', 'portrait');
+
+        $html = view('admin.inbound-report-pdf', compact('inbounds', 'dateFrom', 'dateTo', 'summary'))->render();
+        $pdf->set_option('chroot', base_path());
+        $pdf->loadHtml($html);
+        $pdf->render();
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="inbound-report.pdf"',
+        ]);
     }
 
     /**
@@ -324,10 +389,14 @@ class InboundController extends Controller
             
             $quantity = (int) $quantityNumeric;
 
-            // Normalize keys: always normalize by description (case-insensitive) to ensure identical descriptions merge
+            // Normalize keys: prefer Stock ID when supplied, otherwise normalize by description.
             $normDesc = strtolower(preg_replace('/\s+/', ' ', trim($description)));
             $normDescKey = preg_replace('/[^\p{L}\p{N}\s]/u', '', $normDesc); // remove punctuation for key stability
-            $key = 'DESC:' . $normDescKey;
+            if ($idNo !== null && $idNo !== '') {
+                $key = 'ID:' . strtolower(trim($idNo));
+            } else {
+                $key = 'DESC:' . $normDescKey;
+            }
 
             if (!isset($aggregates[$key])) {
                 $aggregates[$key] = [
@@ -370,15 +439,15 @@ class InboundController extends Controller
                 }
             }
 
-            // Find existing stock by description (case-insensitive). If not found, try by provided id_no as fallback.
+            // Find existing stock by Stock ID first, then match by normalized description.
             $stock = null;
-            $searchDesc = strtolower(trim($description));
-            if ($searchDesc !== '') {
-                $stock = Stock::whereRaw('LOWER(description) = ?', [$searchDesc])->first();
+            if ($idNo) {
+                $stock = Stock::where('id_no', $idNo)->first();
             }
 
-            if (!$stock && $idNo) {
-                $stock = Stock::where('id_no', $idNo)->first();
+            if (!$stock && $description !== '') {
+                $searchDesc = strtolower(trim($description));
+                $stock = Stock::whereRaw('LOWER(TRIM(description)) = ?', [$searchDesc])->first();
             }
 
             if (!$stock) {
@@ -409,9 +478,8 @@ class InboundController extends Controller
 
             if ($quantity > 0) {
                 Inbound::create(['stock_id' => $stock->id, 'total' => $quantity]);
-                $stock->total += $quantity;
-                $stock->stock += $quantity;
-                $stock->save();
+                $stock->increment('total', $quantity);
+                $stock->increment('stock', $quantity);
                 $imported++;
             } else {
                 // Still save stock changes if any, but don't create inbound record for zero quantity

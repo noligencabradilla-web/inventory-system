@@ -120,8 +120,8 @@
 
         {{-- Member Performance Analytics Section --}}
         <div style="margin-top:32px;">
-            <h2 style="margin:0 0 8px 0;">Member Performance Analytics</h2>
-            <div style="color:#6b7280; font-size:14px;">Monitor member activity and usage patterns</div>
+            <!-- <h2 style="margin:0 0 8px 0;">Member Performance Analytics</h2> -->
+            <!-- <div style="color:#6b7280; font-size:14px;">Monitor member activity and usage patterns</div> -->
         </div>
 
         @if(isset($memberPerformance))
@@ -129,7 +129,7 @@
                 <div style="padding:20px; background:linear-gradient(135deg, #f8fafc, #e2e8f0); border-bottom:1px solid #e2e8f0;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
                         <h3 style="margin:0; font-size:18px; color:#1e293b; display:flex; align-items:center; gap:8px;">
-                            <span>�</span> Member Performance Analytics
+                            <span></span> Member Performance Analytics
                         </h3>
                         <div style="display:flex; gap:8px;">
                             <button onclick="showPerformanceChart('frequent')" id="frequentBtn" class="performance-btn active" style="padding:8px 16px; border:1px solid #3b82f6; background:#3b82f6; color:white; border-radius:8px; font-size:14px; cursor:pointer; transition:all 0.2s ease;">
@@ -209,6 +209,7 @@
             </div>
         @endif
 
+        @if(false)
         {{-- Direct Client Members Section --}}
         <div style="margin-top:32px;">
             <h2 style="margin:0 0 8px 0;">Member inventory overview</h2>
@@ -220,10 +221,24 @@
                 <div style="display:grid; gap:16px;">
                     @foreach($clientMembers as $member)
                         @php
+                            // Regular distributions
                             $distributionCount = $member->distributions->count();
                             $distributedQty = $member->distributions->sum('distributed_qty');
                             $usedQty = Schema::hasColumn('client_member_distributions', 'used_qty') ? $member->distributions->sum('used_qty') : 0;
-                            $availableQty = $distributedQty - $usedQty;
+                            
+                            // Direct request items (original ones only, not usage records)
+                            $directDeductions = $member->directDeductions->filter(function ($deduction) {
+                                return $deduction->stock_request_item_id === null && !str_contains($deduction->reason ?? '', 'Used from direct request');
+                            });
+                            $directDistributedQty = $directDeductions->sum('deducted_qty');
+                            $directUsedQty = $member->directDeductions->filter(function ($deduction) {
+                                return str_contains($deduction->reason ?? '', 'Used from direct request');
+                            })->sum('deducted_qty');
+                            
+                            // Combined totals
+                            $totalDistributedQty = $distributedQty + $directDistributedQty;
+                            $totalUsedQty = $usedQty + $directUsedQty;
+                            $availableQty = $totalDistributedQty - $totalUsedQty;
                             $totalUsedValue = 0;
                             $totalAvailableValue = 0;
                             
@@ -249,7 +264,7 @@
                                     <div style="display:flex; gap:12px; text-align:right;">
                                         <div style="background:#fef3c7; padding:6px 10px; border-radius:6px;">
                                             <div style="font-size:9px; color:#92400e; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Used</div>
-                                            <div style="font-size:13px; font-weight:700; color:#92400e; margin-top:2px;">{{ $usedQty }}</div>
+                                            <div style="font-size:13px; font-weight:700; color:#92400e; margin-top:2px;">{{ $totalUsedQty }}</div>
                                         </div>
                                         <div style="background:#d1fae5; padding:6px 10px; border-radius:6px;">
                                             <div style="font-size:9px; color:#065f46; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Available</div>
@@ -261,7 +276,7 @@
 
                             <!-- Collapsible Items Table -->
                             <div id="content_{{ $memberId }}" style="padding:16px; background:#f8fafc; border-top:1px solid #e2e8f0;">
-                                @if($member->distributions->count() > 0)
+                                @if($member->distributions->count() > 0 || $directDeductions->count() > 0)
                                     <div style="overflow-x:auto; border-radius:12px; box-shadow:0 4px 12px rgba(34,197,94,0.1);">
                                         <table style="width:100%; border-collapse:collapse; font-size:13px;">
                                             <thead>
@@ -291,6 +306,19 @@
                                                         <td style="padding:14px 10px; text-align:center; border-bottom:1px solid #dcfce7; color:#ea580c; font-weight:700; background:linear-gradient(135deg, #fff7ed, #fed7aa);">{{ $usedQtyItem }}</td>
                                                     </tr>
                                                 @endforeach
+                                                
+                                                @foreach($directDeductions as $deduction)
+                                                    <tr style="border-bottom:1px solid #dcfce7; background:linear-gradient(135deg, #f0fdf4, #dcfce7);">
+                                                        <td style="padding:14px 10px; border-bottom:1px solid #dcfce7;">
+                                                            <div style="font-weight:700; color:#16a34a; font-size:14px;">Direct</div>
+                                                            <div style="color:#64748b; font-size:11px; margin-top:3px;">{{ $deduction->reason ?? 'Direct Request Item' }}</div>
+                                                        </td>
+                                                        <td style="padding:14px 10px; border-bottom:1px solid #dcfce7; color:#475569; font-weight:600;">N/A</td>
+                                                        <td style="padding:14px 10px; text-align:center; border-bottom:1px solid #dcfce7; color:#16a34a; font-weight:700;">{{ $deduction->deducted_qty }}</td>
+                                                        <td style="padding:14px 10px; text-align:center; border-bottom:1px solid #dcfce7; color:#059669; font-weight:700; background:linear-gradient(135deg, #ecfdf5, #d1fae5);">{{ $deduction->deducted_qty }}</td>
+                                                        <td style="padding:14px 10px; text-align:center; border-bottom:1px solid #dcfce7; color:#ea580c; font-weight:700; background:linear-gradient(135deg, #fff7ed, #fed7aa);">0</td>
+                                                    </tr>
+                                                @endforeach
                                             </tbody>
                                         </table>
                                     </div>
@@ -311,6 +339,7 @@
                 <div style="font-size:18px; font-weight:600; margin-bottom:8px;">No Direct Members Found</div>
                 <div style="font-size:14px;">No direct client members have been created yet.</div>
             </div>
+        @endif
         @endif
     @endif
 @endsection

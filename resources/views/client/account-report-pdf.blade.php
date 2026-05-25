@@ -267,18 +267,70 @@
         @foreach($clientMembers as $member)
             @php
                 $memberItems = collect();
+                
+                // Aggregate items by name to avoid duplicates
+                $aggregatedItems = [];
+                
+                // Add regular distribution items
                 if($member->distributions->isNotEmpty()) {
                     foreach($member->distributions as $distribution) {
                         $availableQty = $distribution->distributed_qty - ($distribution->used_qty ?? 0);
                         if($availableQty > 0) {
-                            $memberItems->push((object)[                                                               
-                                'description' => $distribution->stockRequestItem->stock->description ?? 'Unknown Item',
-                                'distributed_qty' => $distribution->distributed_qty,
-                                'used_qty' => $distribution->used_qty ?? 0,
-                                'available_qty' => $availableQty
-                            ]);
+                            $itemName = $distribution->stockRequestItem->stock->description ?? 'Unknown Item';
+                            
+                            if(isset($aggregatedItems[$itemName])) {
+                                $aggregatedItems[$itemName]['distributed_qty'] += $distribution->distributed_qty;
+                                $aggregatedItems[$itemName]['used_qty'] += $distribution->used_qty ?? 0;
+                                $aggregatedItems[$itemName]['available_qty'] += $availableQty;
+                            } else {
+                                $aggregatedItems[$itemName] = [
+                                    'description' => $itemName,
+                                    'distributed_qty' => $distribution->distributed_qty,
+                                    'used_qty' => $distribution->used_qty ?? 0,
+                                    'available_qty' => $availableQty
+                                ];
+                            }
                         }
                     }
+                }
+                
+                // Add direct deduction items
+                if($member->directDeductions->isNotEmpty()) {
+                    foreach($member->directDeductions as $deduction) {
+                        if($deduction->stock_request_item_id === null) { // Only direct request items
+                            // Extract clean item name from reason
+                            $itemName = $deduction->reason ?? 'Direct Request Item';
+                            
+                            // Remove prefixes to get clean item name
+                            if(str_contains($itemName, 'Member distribution - ')) {
+                                $itemName = str_replace('Member distribution - ', '', $itemName);
+                            }
+                            if(str_contains($itemName, 'Member inventory deduction - ')) {
+                                $itemName = str_replace('Member inventory deduction - ', '', $itemName);
+                            }
+                            if(str_contains($itemName, 'Used from direct request - ')) {
+                                $itemName = str_replace('Used from direct request - ', '', $itemName);
+                            }
+                            
+                            if(isset($aggregatedItems[$itemName])) {
+                                $aggregatedItems[$itemName]['distributed_qty'] += $deduction->deducted_qty;
+                                $aggregatedItems[$itemName]['used_qty'] += 0; // Direct items are not used yet
+                                $aggregatedItems[$itemName]['available_qty'] += $deduction->deducted_qty;
+                            } else {
+                                $aggregatedItems[$itemName] = [
+                                    'description' => $itemName,
+                                    'distributed_qty' => $deduction->deducted_qty,
+                                    'used_qty' => 0, // Direct items are not used yet
+                                    'available_qty' => $deduction->deducted_qty
+                                ];
+                            }
+                        }
+                    }
+                }
+                
+                // Convert aggregated items back to collection
+                foreach($aggregatedItems as $item) {
+                    $memberItems->push((object)$item);
                 }
             @endphp
             

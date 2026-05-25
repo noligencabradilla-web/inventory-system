@@ -104,24 +104,60 @@
         .muted{ color:var(--muted); }
         .list{ list-style: disc inside; color:var(--muted); }
         .list li{ margin-bottom:6px; }
+
+        .summary-table-wrapper {
+            overflow-x:auto;
+            border-radius:16px;
+            box-shadow:0 8px 25px rgba(59,130,246,0.15);
+            background:linear-gradient(135deg, #eff6ff, #dbeafe);
+            margin-top:22px;
+        }
+        .summary-table {
+            width:100%;
+            border-collapse:collapse;
+            font-family:Inter, system-ui, sans-serif;
+        }
+        .summary-table th,
+        .summary-table td {
+            padding:12px 10px;
+            border:1px solid #e0e7ff;
+            text-align:left;
+            font-size:14px;
+        }
+        .summary-table th {
+            border-color:#1e40af;
+            border-bottom:2px solid #1e40af;
+            background:linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color:#ffffff;
+            font-weight:700;
+            min-width:140px;
+        }
+        .summary-table th:nth-child(1) { min-width:280px; }
+        .summary-table th:nth-child(2) { min-width:150px; }
+        .summary-table th:nth-child(3),
+        .summary-table th:nth-child(4),
+        .summary-table th:nth-child(5),
+        .summary-table th:nth-child(6) { min-width:120px; }
+        .summary-table tbody tr { background:#ffffff; }
+        .summary-table tbody tr:hover { background:#f8fbff; }
+        .summary-table td.numeric { text-align:right; color:#475569; font-weight:600; }
+        .summary-table td .summary-label { color:#1e40af; font-weight:700; font-size:14px; }
+        .summary-table td .summary-text { color:#334155; font-size:14px; }
     </style>
 
-    <div class="cards-grid">
-        <div class="card">
-            <div class="card-body" style="position:relative;">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-                    <div>
-                        <div class="card-title">Total transactions</div>
-                        <div class="card-sub">{{ $requests->count() }} total</div>
-                    </div>
+    <div class="card-body" style="position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+            <div>
+                <div class="card-title">Summary Filters</div>
+            </div>
 
-                    <form id="filterForm" method="GET" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px;">
+            <form id="filterForm" method="GET" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px;">
                         <input
                             id="filterQuery"
                             type="text"
                             name="q"
                             value="{{ $q ?? '' }}"
-                            placeholder="Search # or client"
+                            placeholder="Search item # or description"
                             style="padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff; min-width:200px;"
                         />
 
@@ -136,423 +172,78 @@
                             @endforeach
                         </select>
 
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <label style="font-size:13px; font-weight:600; color:#374151;">Type:</label>
-                            <div style="display:flex; gap:12px;">
-                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:13px;">
-                                    <input 
-                                        type="radio" 
-                                        name="type" 
-                                        value="all" 
-                                        {{ ($type ?? 'all') === 'all' ? 'checked' : '' }}
-                                        onchange="document.getElementById('filterForm').submit();"
-                                    >
-                                    <span>All</span>
-                                </label>
-                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:13px;">
-                                    <input 
-                                        type="radio" 
-                                        name="type" 
-                                        value="request" 
-                                        {{ ($type ?? 'all') === 'request' ? 'checked' : '' }}
-                                        onchange="document.getElementById('filterForm').submit();"
-                                    >
-                                    <span>Request</span>
-                                </label>
-                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:13px;">
-                                    <input 
-                                        type="radio" 
-                                        name="type" 
-                                        value="urgent" 
-                                        {{ ($type ?? 'all') === 'urgent' ? 'checked' : '' }}
-                                        onchange="document.getElementById('filterForm').submit();"
-                                    >
-                                    <span>Urgent</span>
-                                </label>
-                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:13px;">
-                                    <input 
-                                        type="radio" 
-                                        name="type" 
-                                        value="direct" 
-                                        {{ ($type ?? 'all') === 'direct' ? 'checked' : '' }}
-                                        onchange="document.getElementById('filterForm').submit();"
-                                    >
-                                    <span>Direct</span>
-                                </label>
-                                <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:13px;">
-                                    <input 
-                                        type="radio" 
-                                        name="type" 
-                                        value="inbound" 
-                                        {{ ($type ?? 'all') === 'inbound' ? 'checked' : '' }}
-                                        onchange="document.getElementById('filterForm').submit();"
-                                    >
-                                    <span>Inbound</span>
-                                </label>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                            <div style="display:flex; flex-direction:column; min-width:150px;">
+                                <label for="date_from" style="font-size:12px; color:var(--muted); margin-bottom:4px;">From</label>
+                                <input
+                                    id="date_from"
+                                    type="date"
+                                    name="date_from"
+                                    value="{{ $dateFrom ?? '' }}"
+                                    style="padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff;"
+                                />
+                            </div>
+                            <div style="display:flex; flex-direction:column; min-width:150px;">
+                                <label for="date_to" style="font-size:12px; color:var(--muted); margin-bottom:4px;">To</label>
+                                <input
+                                    id="date_to"
+                                    type="date"
+                                    name="date_to"
+                                    value="{{ $dateTo ?? '' }}"
+                                    style="padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff;"
+                                />
                             </div>
                         </div>
+
+                        <a
+                            href="{{ route('admin.summary.report.pdf') }}?{{ http_build_query(request()->only(['q', 'office', 'date_from', 'date_to'])) }}"
+                            class="btn-submit"
+                            style="padding:10px 14px; border-radius:10px; background:#2563eb; color:#fff; text-decoration:none; font-weight:700;"
+                        >
+                            Download PDF
+                        </a>
                     </form>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <div>
-        @forelse($requests as $req)
-            @php
-                $requestValue = $req->items->sum(function ($item) {
-                    return ($item->stock?->price ?? 0) * ($item->approved_qty ?? $item->requested_qty);
-                });
-            @endphp
-            <div class="card status-{{ $req->status }}" style="margin-bottom:14px; border-left:4px solid #10b981;">
-                <div class="card-head" onclick="toggleReq('req-{{ $req->id }}')">
-                    <div>
-                        <div class="card-title" style="color:#10b981;">Request #{{ $req->id }}</div>
-                        <div class="card-sub">Created on {{ $req->created_at?->format('F j, Y, g:i A') }}</div>
-                        <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius:8px; border:1px solid #6ee7b7;">
-                            <div style="font-size:12px; color:#047857; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Client</div>
-                            <div style="font-size:14px; font-weight:800; color:#065f46; margin-top:2px;">{{ $req->client?->name ?? 'Unknown' }}</div>
-                            <div style="font-size:12px; color:#047857; margin-top:4px;">Office: {{ $req->office ?? 'Not specified' }}</div>
-                        </div>
-                                                <div style="margin-top:8px;">
-                            <span style="padding:4px 8px; border-radius:6px; background:#10b981; color:#fff; font-size:11px; font-weight:700;">{{ strtoupper(str_replace('_', ' ', $req->status)) }}</span>
-                        </div>
-                    </div>
-
-                    <div style="text-align:right; min-width:160px;">
-                        <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Type</div>
-                        <div style="margin-top:4px;">
-                            <span style="padding:4px 8px; border-radius:6px; background:#10b981; color:#fff; font-size:12px; font-weight:700;">REQUEST</span>
-                        </div>
-                        @if($req->verification_code)
-                            <div style="font-size:12px; color:var(--muted); margin-top:4px;">Code: <span style="font-weight:700; color:var(--text);">{{ $req->verification_code }}</span></div>
-                        @endif
-                        @if($req->received_by)
-                            <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #f0f9ff, #e0f2fe); border-radius:8px; border:1px solid #93c5fd;">
-                                <div style="font-size:12px; color:#1e40af; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Received By</div>
-                                <div style="font-size:14px; font-weight:800; color:#1e3a8a; margin-top:2px;">{{ $req->received_by }}</div>
-                            </div>
-                        @endif
+                <div class="summary-table-wrapper">
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Starting Balance</th>
+                                <th>Inbound</th>
+                                <th>Sum</th>
+                                <th>Outbound</th>
+                                <th>Ending Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                @forelse($stockSummaries as $row)
+                                    <tr>
+                                        <td>{{ $row['item'] }} @if($row['id_no']) <span class="muted">({{ $row['id_no'] }})</span>@endif</td>
+                                        <td class="numeric">{{ number_format($row['starting_balance']) }}</td>
+                                        <td class="numeric">{{ number_format($row['inbound']) }}</td>
+                                        <td class="numeric">{{ number_format($row['sum']) }}</td>
+                                        <td class="numeric">{{ number_format($row['outbound']) }}</td>
+                                        <td class="numeric">{{ number_format($row['ending_balance']) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" style="text-align:center; padding:20px;">No stock records found.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-
-                <div id="req-{{ $req->id }}" class="card-body hidden">
-                    <div style="font-weight:700; margin-bottom:12px; color:var(--text); font-size:14px;">Request Details</div>
-                    <div style="display:grid; gap:8px;">
-                        @foreach($req->items as $item)
-                            @php
-                                $unitPrice = $item->stock?->price ?? 0;
-                                $quantity = $item->approved_qty ?? $item->requested_qty;
-                                $lineTotal = $unitPrice * $quantity;
-                            @endphp
-                            <div style="padding:12px; background:linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius:8px;">
-                                <div style="font-weight:600; color:#065f46; margin-bottom:4px;">{{ $item->stock?->description ?? 'Unknown Item' }}</div>
-                                <div style="display:flex; gap:16px; font-size:12px; color:#047857;">
-                                    <span><strong>ID:</strong> {{ $item->stock?->id_no ?? 'N/A' }}</span>
-                                    <span><strong>Unit:</strong> {{ $item->stock?->unit ?? 'N/A' }}</span>
-                                    <span><strong>Quantity:</strong> {{ $quantity }}</span>
-                                    @if($unitPrice)
-                                        <span><strong>Value:</strong> ₱{{ number_format($lineTotal, 2) }}</span>
-                                    @endif
-                                </div>
-                                @if($item->requested_qty !== $item->approved_qty)
-                                    <div style="margin-top:8px; padding:6px 8px; background:#fef3c7; border-radius:6px; border:1px solid #fbbf24;">
-                                        <strong style="color:#92400e;">Quantity:</strong> Requested: {{ $item->requested_qty }}, Approved: {{ $item->approved_qty ?? 0 }}
-                                    </div>
-                                @endif
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-        @empty
-            <div class="card">
-                <div class="card-body">
-                    <div class="muted">No transactions found yet.</div>
-                </div>
-            </div>
-        @endforelse
-    </div>
-
-    <!-- Urgent Outbounds Section -->
-    @if(isset($urgentOutbounds) && $urgentOutbounds->count() > 0)
-        <h3 style="margin:24px 0 12px 0; color:#dc2626; font-size:18px; font-weight:800;">Urgent Outbound Requests</h3>
-        @forelse($urgentOutbounds as $urgent)
-            <div class="card" style="margin-bottom:14px; border-left:4px solid #dc2626;">
-                <div class="card-head" onclick="toggleReq('urgent-{{ $urgent->id }}')">
-                    <div>
-                        <div class="card-title" style="color:#dc2626;">Urgent Outbound #{{ $urgent->id }}</div>
-                        <div class="card-sub">Created {{ $urgent->created_at?->format('M d, Y @ h:i A') }}</div>
-                        <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #fef2f2, #fee2e2); border-radius:8px; border:1px solid #fca5a5;">
-                            <div style="font-size:12px; color:#991b1b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Recipient</div>
-                            <div style="font-size:14px; font-weight:800; color:#7f1d1d; margin-top:2px;">{{ $urgent->urgent_recipient_name ?? 'Unknown' }}</div>
-                            <div style="font-size:12px; color:#991b1b; margin-top:4px;">Office: {{ $urgent->urgent_recipient_office ?? 'Not specified' }}</div>
-                        </div>
-                        @if($urgent->reason)
-                            <div style="margin-top:8px; padding:6px 10px; background:#fef9c3; border-radius:6px; border:1px solid #fde047;">
-                                <div style="font-size:12px; color:#854d0e; font-weight:600;">Reason:</div>
-                                <div style="font-size:13px; color:#713f12; margin-top:2px;">{{ $urgent->reason }}</div>
-                            </div>
-                        @endif
-                        <div style="margin-top:8px;">
-                            <span style="padding:4px 8px; border-radius:6px; background:#dc2626; color:#fff; font-size:11px; font-weight:700;">URGENT</span>
-                        </div>
-                    </div>
-
-                    <div style="text-align:right; min-width:160px;">
-                        <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Item</div>
-                        <div style="margin-top:4px;">
-                            <div style="font-weight:700; color:#1f2937;">{{ $urgent->stock?->description ?? 'Unknown' }}</div>
-                            <div style="font-size:12px; color:#6b7280; margin-top:2px;">Qty: {{ $urgent->total }}</div>
-                            @if($urgent->stock?->price)
-                                <div style="font-size:12px; color:#6b7280; margin-top:2px;">Value: ₱{{ number_format($urgent->stock->price * $urgent->total, 2) }}</div>
-                            @endif
-                        </div>
-                        @if($urgent->received_by)
-                            <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #fef2f2, #fee2e2); border-radius:8px; border:1px solid #fca5a5;">
-                                <div style="font-size:12px; color:#991b1b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Received By</div>
-                                <div style="font-size:14px; font-weight:800; color:#7f1d1d; margin-top:2px;">{{ $urgent->received_by }}</div>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-
-                <div id="urgent-{{ $urgent->id }}" class="card-body hidden">
-                    <div style="font-weight:700; margin-bottom:12px; color:var(--text); font-size:14px;">Urgent Request Details</div>
-                    <div style="display:grid; gap:8px;">
-                        <div style="padding:12px; background:linear-gradient(135deg, #fef2f2, #fee2e2); border-radius:8px;">
-                            <div style="font-weight:600; color:#7f1d1d; margin-bottom:4px;">{{ $urgent->stock?->description ?? 'Unknown Item' }}</div>
-                            <div style="display:flex; gap:16px; font-size:12px; color:#991b1b;">
-                                <span><strong>ID:</strong> {{ $urgent->stock?->id_no ?? 'N/A' }}</span>
-                                <span><strong>Unit:</strong> {{ $urgent->stock?->unit ?? 'N/A' }}</span>
-                                <span><strong>Quantity:</strong> {{ $urgent->total }}</span>
-                                @if($urgent->stock?->price)
-                                    <span><strong>Value:</strong> ₱{{ number_format($urgent->stock->price * $urgent->total, 2) }}</span>
-                                @endif
-                            </div>
-                            @if($urgent->reason)
-                                <div style="margin-top:8px; padding:6px 8px; background:#fef9c3; border-radius:6px; border:1px solid #fde047;">
-                                    <strong style="color:#854d0e;">Reason:</strong> {{ $urgent->reason }}
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @empty
-        @endforelse
-        
-        <hr style="margin:24px 0; border:none; border-top:1px solid #e2e8f0;">
-    @endif
-
-    <!-- Direct Requests Section -->
-    @if(isset($directRequests) && $directRequests->count() > 0)
-        <h3 style="margin:24px 0 12px 0; color:#10b981; font-size:18px; font-weight:800;">Direct Requests</h3>
-        @forelse($directRequests as $request)
-            <div class="card" style="margin-bottom:14px; border-left:4px solid #10b981;">
-                <div class="card-head" onclick="toggleReq('direct-{{ $request->id }}')">
-                    <div>
-                        <div class="card-title" style="color:#10b981;">Direct Request #{{ $request->id }}</div>
-                        <div class="card-sub">Created {{ $request->created_at?->format('M d, Y @ h:i A') }}</div>
-                        <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius:8px; border:1px solid #6ee7b7;">
-                            <div style="font-size:12px; color:#047857; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">@if($request->member) Member @else Client @endif</div>
-                            <div style="font-size:14px; font-weight:800; color:#065f46; margin-top:2px;">{{ $request->member?->name ?? $request->client?->name ?? 'Unknown' }}</div>
-                            @if($request->member)
-                                <div style="font-size:12px; color:#047857; margin-top:4px;">Client: {{ $request->client?->name ?? 'Unknown' }}</div>
-                            @else
-                                <div style="font-size:12px; color:#047857; margin-top:4px;">Office: {{ $request->office ?? 'Not specified' }}</div>
-                            @endif
-                        </div>
-                        @if($request->reason)
-                            <div style="margin-top:8px; padding:6px 10px; background:#fef9c3; border-radius:6px; border:1px solid #fde047;">
-                                <div style="font-size:12px; color:#854d0e; font-weight:600;">Reason:</div>
-                                <div style="font-size:13px; color:#713f12; margin-top:2px;">{{ $request->reason }}</div>
-                            </div>
-                        @endif
-                        <div style="margin-top:8px;">
-                            <span style="padding:4px 8px; border-radius:6px; background:#10b981; color:#fff; font-size:11px; font-weight:700;">Direct request</span>
-                        </div>
-                    </div>
-
-                    <div style="text-align:right; min-width:160px;">
-                        <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Item</div>
-                        <div style="margin-top:4px;">
-                            <div style="font-weight:700; color:#1f2937;">{{ $request->stock?->description ?? 'Unknown' }}</div>
-                            <div style="font-size:12px; color:#6b7280; margin-top:2px;">Qty: {{ $request->total }}</div>
-                            @if($request->stock?->price)
-                                <div style="font-size:12px; color:#6b7280; margin-top:2px;">Value: ₱{{ number_format($request->stock->price * $request->total, 2) }}</div>
-                            @endif
-                        </div>
-                        @if($request->received_by)
-                            <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #f0f9ff, #e0f2fe); border-radius:8px; border:1px solid #93c5fd;">
-                                <div style="font-size:12px; color:#1e40af; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Received By</div>
-                                <div style="font-size:14px; font-weight:800; color:#1e3a8a; margin-top:2px;">{{ $request->received_by }}</div>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-
-                <div id="direct-{{ $request->id }}" class="card-body hidden">
-                    <div style="font-weight:700; margin-bottom:12px; color:var(--text); font-size:14px;">Direct Request Details</div>
-                    <div style="display:grid; gap:8px;">
-                        <div style="padding:12px; background:linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius:8px;">
-                            <div style="font-weight:600; color:#065f46; margin-bottom:4px;">{{ $request->stock?->description ?? 'Unknown Item' }}</div>
-                            <div style="display:flex; gap:16px; font-size:12px; color:#047857;">
-                                <span><strong>ID:</strong> {{ $request->stock?->id_no ?? 'N/A' }}</span>
-                                <span><strong>Unit:</strong> {{ $request->stock?->unit ?? 'N/A' }}</span>
-                                <span><strong>Quantity:</strong> {{ $request->total }}</span>
-                                @if($request->stock?->price)
-                                    <span><strong>Value:</strong> ₱{{ number_format($request->stock->price * $request->total, 2) }}</span>
-                                @endif
-                            </div>
-                            @if($request->reason)
-                                <div style="margin-top:8px; padding:6px 8px; background:#fef9c3; border-radius:6px; border:1px solid #fde047;">
-                                    <strong style="color:#854d0e;">Reason:</strong> {{ $request->reason }}
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @empty
-        @endforelse
-    @endif
-
-    <!-- Inbound Records Section -->
-    @if(isset($inbounds) && $inbounds->count() > 0)
-        <h3 style="margin:24px 0 12px 0; color:#3b82f6; font-size:18px; font-weight:800;">Inbound Records</h3>
-        
-        <!-- Import Batches (Grouped Records) -->
-        @if(isset($groupedInbounds) && $groupedInbounds->count() > 0)
-            @forelse($groupedInbounds as $batchKey => $batch)
-                @php
-                    $firstRecord = $batch->first();
-                    $totalItems = $batch->count();
-                    $totalQuantity = $batch->sum('total');
-                    $batchTime = $firstRecord->created_at;
-                @endphp
-                <div class="card" style="margin-bottom:14px; border-left:4px solid #10b981;">
-                    <div class="card-head" onclick="toggleReq('import-batch-{{ $batchKey }}')">
-                        <div>
-                            <div class="card-title" style="color:#10b981;">Import Batch</div>
-                            <div class="card-sub">Imported {{ $batchTime?->format('M d, Y @ h:i A') }}</div>
-                            <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius:8px; border:1px solid #6ee7b7;">
-                                <div style="font-size:12px; color:#047857; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Import Summary</div>
-                                <div style="font-size:14px; font-weight:800; color:#065f46; margin-top:2px;">{{ $totalItems }} items • {{ $totalQuantity }} total units</div>
-                            </div>
-                        </div>
-                        <div style="text-align:right; min-width:160px;">
-                            <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Type</div>
-                            <div style="margin-top:4px;">
-                                <span style="padding:4px 8px; border-radius:6px; background:#10b981; color:#fff; font-size:12px; font-weight:700;">IMPORT</span>
-                            </div>
-                            <div style="font-size:12px; color:var(--muted); margin-top:4px;">Batch ID: <span style="font-weight:700; color:var(--text);">{{ $batchKey }}</span></div>
-                        </div>
-                    </div>
-
-                    <div id="import-batch-{{ $batchKey }}" class="card-body hidden">
-                        <div style="font-weight:700; margin-bottom:12px; color:var(--text); font-size:14px;">Import Details</div>
-                        <div style="display:grid; gap:8px;">
-                            @foreach($batch as $inbound)
-                                <div style="padding:12px; background:linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius:8px;">
-                                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
-                                        <div style="flex:1;">
-                                            <div style="font-weight:600; color:#047857; margin-bottom:4px;">{{ $inbound->stock?->description ?? 'Unknown Item' }}</div>
-                                            <div style="display:flex; gap:16px; font-size:12px; color:#047857;">
-                                                <span><strong>ID:</strong> {{ $inbound->stock?->id_no ?? 'N/A' }}</span>
-                                                <span><strong>Unit:</strong> {{ $inbound->stock?->unit ?? 'N/A' }}</span>
-                                                <span><strong>Quantity:</strong> {{ $inbound->total }}</span>
-                                                @if($inbound->stock?->category_name)
-                                                    <span><strong>Category:</strong> {{ $inbound->stock->category_name }}</span>
-                                                @endif
-                                            </div>
-                                        </div>
-                                        <div style="text-align:right;">
-                                            <div style="font-size:14px; font-weight:700; color:#047857;">+{{ $inbound->total }} {{ $inbound->stock?->unit ?? 'pcs' }}</div>
-                                            <div style="font-size:12px; color:#64748b; margin-top:2px;">Added to stock</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            @empty
-            @endforelse
-        @endif
-
-        <!-- Manual Inbound Records -->
-        @if(isset($manualInbounds) && $manualInbounds->count() > 0)
-            @forelse($manualInbounds as $inbound)
-                <div class="card" style="margin-bottom:14px; border-left:4px solid #3b82f6;">
-                    <div class="card-head" onclick="toggleReq('inbound-{{ $inbound->id }}')">
-                        <div>
-                            <div class="card-title" style="color:#3b82f6;">Inbound #{{ $inbound->id }}</div>
-                            <div class="card-sub">Created {{ $inbound->created_at?->format('M d, Y @ h:i A') }}</div>
-                            <div style="margin-top:8px; padding:6px 10px; background:linear-gradient(135deg, #eff6ff, #dbeafe); border-radius:8px; border:1px solid #93c5fd;">
-                                <div style="font-size:12px; color:#1e40af; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Stock Item</div>
-                                <div style="font-size:14px; font-weight:800; color:#1e3a8a; margin-top:2px;">{{ $inbound->stock?->description ?? 'Unknown Item' }}</div>
-                                @if($inbound->stock?->category_name)
-                                    <div style="font-size:12px; color:#1e40af; margin-top:4px;">Category: {{ $inbound->stock->category_name }}</div>
-                                @endif
-                            </div>
-                        </div>
-                        <div style="text-align:right; min-width:160px;">
-                            <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Type</div>
-                            <div style="margin-top:4px;">
-                                <span style="padding:4px 8px; border-radius:6px; background:#3b82f6; color:#fff; font-size:12px; font-weight:700;">MANUAL</span>
-                            </div>
-                            @if($inbound->stock?->id_no)
-                                <div style="font-size:12px; color:var(--muted); margin-top:4px;">ID: <span style="font-weight:700; color:var(--text);">{{ $inbound->stock->id_no }}</span></div>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div id="inbound-{{ $inbound->id }}" class="card-body hidden">
-                        <div style="font-weight:700; margin-bottom:12px; color:var(--text); font-size:14px;">Inbound Details</div>
-                        <div style="padding:12px; background:linear-gradient(135deg, #eff6ff, #dbeafe); border-radius:8px;">
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
-                                <div style="flex:1;">
-                                    <div style="font-weight:600; color:#1e40af; margin-bottom:4px;">{{ $inbound->stock?->description ?? 'Unknown Item' }}</div>
-                                    <div style="display:flex; gap:16px; font-size:12px; color:#1e40af;">
-                                        <span><strong>ID:</strong> {{ $inbound->stock?->id_no ?? 'N/A' }}</span>
-                                        <span><strong>Unit:</strong> {{ $inbound->stock?->unit ?? 'N/A' }}</span>
-                                        <span><strong>Quantity:</strong> {{ $inbound->total }}</span>
-                                        @if($inbound->stock?->category_name)
-                                            <span><strong>Category:</strong> {{ $inbound->stock->category_name }}</span>
-                                        @endif
-                                    </div>
-                                </div>
-                                <div style="text-align:right;">
-                                    <div style="font-size:14px; font-weight:700; color:#1e40af;">+{{ $inbound->total }} {{ $inbound->stock?->unit ?? 'pcs' }}</div>
-                                    <div style="font-size:12px; color:#64748b; margin-top:2px;">Added to stock</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            @empty
-            @endforelse
-        @endif
-
-        @if((isset($groupedInbounds) && $groupedInbounds->count() == 0) && (isset($manualInbounds) && $manualInbounds->count() == 0))
-            <div style="text-align:center; padding:40px; color:var(--muted);">
-                No inbound records found.
-            </div>
-        @endif
-    @endif
 
     <script>
-        function toggleReq(id){
-            const el = document.getElementById(id);
-            if(!el) return;
-            el.classList.toggle('hidden');
-        }
-
         // Auto-update filters without needing a button.
         (function(){
             const input = document.getElementById('filterQuery');
             const select = document.getElementById('filterOffice');
+            const dateFrom = document.getElementById('date_from');
+            const dateTo = document.getElementById('date_to');
             const form = document.getElementById('filterForm');
 
             if (!form) return;
@@ -562,14 +253,13 @@
                 const params = new URLSearchParams();
                 const q = input?.value?.trim();
                 const office = select?.value?.trim();
-                
-                // Get selected radio button
-                const typeRadio = document.querySelector('input[name="type"]:checked');
-                const type = typeRadio ? typeRadio.value : 'all';
+                const from = dateFrom?.value?.trim();
+                const to = dateTo?.value?.trim();
 
                 if (q) params.set('q', q);
                 if (office) params.set('office', office);
-                if (type && type !== 'all') params.set('type', type);
+                if (from) params.set('date_from', from);
+                if (to) params.set('date_to', to);
 
                 const url = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
                 window.location.href = url;
@@ -581,6 +271,8 @@
             });
 
             select?.addEventListener('change', submit);
+            dateFrom?.addEventListener('change', submit);
+            dateTo?.addEventListener('change', submit);
         })();
     </script>
 @endsection

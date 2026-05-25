@@ -536,7 +536,7 @@
             
             <div class="modal-left">
                 <!-- Overview Section (Default) -->
-                <div id="overview-section" class="content-section active">
+                <div id="overview-section" class="content-section">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
                         <!-- Client Info Card -->
                         <div class="settings-card">
@@ -599,7 +599,7 @@
                 </div>
 
                 <!-- Client Inventory Section -->
-                <div id="inventory-section" class="content-section">
+                <div id="inventory-section" class="content-section active">
                     <div id="inventoryContent">
                         <!-- Content will be populated dynamically -->
                     </div>
@@ -614,15 +614,11 @@
             </div>
             
             <div class="modal-right">
-                <button class="nav-button active" onclick="showSection('overview')">
-                    <span class="nav-button-icon">📋</span>
-                    <span>Overview</span>
-                </button>
-                <button class="nav-button" onclick="showSection('inventory')">
+                <button class="nav-button active" onclick="showSection('inventory', event)">
                     <span class="nav-button-icon">📦</span>
                     <span>Client Inventory</span>
                 </button>
-                <button class="nav-button" onclick="showSection('members')">
+                <button class="nav-button" onclick="showSection('members', event)">
                     <span class="nav-button-icon">👥</span>
                     <span>Members & Their Held Items</span>
                 </button>
@@ -765,8 +761,8 @@
             document.getElementById('clientModal').classList.add('show');
             document.body.style.overflow = 'hidden';
             
-            // Show overview section by default
-            showSection('overview');
+            // Show inventory section by default
+            showSection('inventory');
         }
 
         function closeClientModal() {
@@ -775,7 +771,7 @@
             currentClientId = null;
         }
 
-        function showSection(sectionName) {
+        function showSection(sectionName, event = null) {
             // Hide all sections
             document.querySelectorAll('.content-section').forEach(section => {
                 section.classList.remove('active');
@@ -789,8 +785,17 @@
             // Show selected section
             document.getElementById(sectionName + '-section').classList.add('active');
             
-            // Add active class to clicked button
-            event.target.closest('.nav-button').classList.add('active');
+            // Add active class to the clicked button, or infer from section name when triggered programmatically
+            let activeButton = null;
+            if (event && event.target) {
+                activeButton = event.target.closest('.nav-button');
+            }
+            if (!activeButton) {
+                activeButton = document.querySelector(`.nav-button[onclick*="showSection('${sectionName}'`);
+            }
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
         }
 
         function loadInventoryContent(clientId) {

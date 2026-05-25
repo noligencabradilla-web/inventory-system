@@ -49,7 +49,7 @@
             }
         }
         
-        $totalPending = $pendingRequests + $approvedRequests + $readyToReceive + $rejectedRequests + $lowInventory + $memberActivity;
+        $totalPending = $pendingRequests + $approvedRequests + $readyToReceive + $rejectedRequests + $lowInventory;
     }
 @endphp
 
@@ -205,7 +205,8 @@
                     </a>
                 @endif
 
-                @if($memberActivity > 0)
+                {{-- New Member Activity hidden temporarily --}}
+                {{-- @if($memberActivity > 0)
                     <a href="{{ route('client.account', ['tab' => 'members']) }}" class="notification-item {{ $memberActivity > 0 ? 'unread' : '' }}">
                         <div class="notification-avatar member">
                             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -219,7 +220,7 @@
                         </div>
                         <div class="notification-count">{{ $memberActivity }}</div>
                     </a>
-                @endif
+                @endif --}}
             @else
                 <div class="empty-state">
                     <svg viewBox="0 0 24 24" fill="currentColor">

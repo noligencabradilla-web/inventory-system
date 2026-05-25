@@ -79,32 +79,67 @@ class AccountController extends Controller
 
                 $filteredDistributions = $memberDistributionsQuery->get();
                 
-                // Group distributions by member for easy lookup
+                // Get direct deductions within date range
+                $directDeductionsQuery = \App\Models\ClientDirectDeduction::with(['member'])
+                    ->whereHas('member', function ($query) use ($user) {
+                        $query->where('client_id', $user->id);
+                    })
+                    ->where('stock_request_item_id', null); // Only direct request items
+
+                if ($dateFrom) {
+                    $directDeductionsQuery->whereDate('created_at', '>=', $dateFrom);
+                }
+                if ($dateTo) {
+                    $directDeductionsQuery->whereDate('created_at', '<=', $dateTo);
+                }
+
+                $filteredDirectDeductions = $directDeductionsQuery->get();
+                
+                // Group distributions and deductions by member for easy lookup
                 $distributionsByMember = $filteredDistributions->groupBy('member_id');
+                $directDeductionsByMember = $filteredDirectDeductions->groupBy('member_id');
             } else {
-                // No date filters, get all distributions
+                // No date filters, get all distributions and direct deductions
                 $allDistributions = \App\Models\ClientMemberDistribution::with(['member', 'stockRequestItem.stock'])
                     ->whereHas('member', function ($query) use ($user) {
                         $query->where('client_id', $user->id);
                     })->get();
                 
+                $allDirectDeductions = \App\Models\ClientDirectDeduction::with(['member'])
+                    ->whereHas('member', function ($query) use ($user) {
+                        $query->where('client_id', $user->id);
+                    })
+                    ->where('stock_request_item_id', null) // Only direct request items
+                    ->get();
+                
                 $distributionsByMember = $allDistributions->groupBy('member_id');
+                $directDeductionsByMember = $allDirectDeductions->groupBy('member_id');
             }
 
-            $memberReports = $allClientMembers->map(function ($member) use ($distributionsByMember) {
+            $memberReports = $allClientMembers->map(function ($member) use ($distributionsByMember, $directDeductionsByMember) {
                 $memberDistributions = $distributionsByMember->get($member->id, collect());
+                $memberDirectDeductions = $directDeductionsByMember->get($member->id, collect());
                 
+                // Regular distributions
                 $distributedQty = $memberDistributions->sum('distributed_qty');
                 $usedQty = Schema::hasColumn('client_member_distributions', 'used_qty') ? $memberDistributions->sum('used_qty') : 0;
-                $availableQty = $distributedQty - $usedQty;
+                
+                // Direct deductions (count as distributed and available, not used)
+                $directDistributedQty = $memberDirectDeductions->sum('deducted_qty');
+                $directAvailableQty = $memberDirectDeductions->sum('deducted_qty');
+                
+                // Combine both types
+                $totalDistributed = $distributedQty + $directDistributedQty;
+                $totalUsed = $usedQty; // Don't add direct deductions to used
+                $availableQty = ($distributedQty - $usedQty) + $directAvailableQty; // Direct items add to available
                 
                 return [
                     'name' => $member->name,
                     'email' => $member->email,
-                    'distributed_items' => $distributedQty,
+                    'distributed_items' => $totalDistributed,
                     'available_items' => max(0, $availableQty),
-                    'used_items' => $usedQty,
-                    'used_value' => $memberDistributions->sum('used_qty') ?? 0,
+                    'used_items' => $totalUsed,
+                    'used_value' => ($memberDistributions->sum('used_qty') ?? 0),
                 ];
             });
         }
@@ -486,9 +521,36 @@ class AccountController extends Controller
         if ($request->expectsJson()) {
             $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
                 'member_id' => 'required|exists:client_members,id',
-                'stock_request_item_id' => 'required|exists:stock_request_items,id',
+                'stock_request_item_id' => 'required|string',
                 'distributed_qty' => 'required|integer|min:1',
             ]);
+
+            // Custom validation for stock_request_item_id to handle both regular and direct request items
+            $validator->after(function ($validator) use ($request) {
+                $stockRequestItemId = $request->input('stock_request_item_id');
+                
+                if (str_starts_with($stockRequestItemId, 'direct_')) {
+                    // Handle direct request items
+                    $outboundId = str_replace('direct_', '', $stockRequestItemId);
+                    $outbound = \App\Models\Outbound::find($outboundId);
+                    
+                    if (!$outbound || $outbound->client_id !== Auth::id()) {
+                        $validator->errors()->add('stock_request_item_id', 'The selected stock request item id is invalid.');
+                    }
+                } else {
+                    // Handle regular stock request items
+                    $stockRequestItem = \App\Models\StockRequestItem::find($stockRequestItemId);
+                    
+                    if (!$stockRequestItem) {
+                        $validator->errors()->add('stock_request_item_id', 'The selected stock request item id is invalid.');
+                    } else {
+                        // Check if the item belongs to the authenticated client
+                        if ($stockRequestItem->request->client_id !== Auth::id()) {
+                            $validator->errors()->add('stock_request_item_id', 'The selected stock request item id is invalid.');
+                        }
+                    }
+                }
+            });
 
             if ($validator->fails()) {
                 return response()->json([
@@ -501,9 +563,27 @@ class AccountController extends Controller
         } else {
             $validated = $request->validate([
                 'member_id' => 'required|exists:client_members,id',
-                'stock_request_item_id' => 'required|exists:stock_request_items,id',
+                'stock_request_item_id' => 'required|string',
                 'distributed_qty' => 'required|integer|min:1',
             ]);
+            
+            // Apply the same custom validation for non-JSON requests
+            $stockRequestItemId = $validated['stock_request_item_id'];
+            
+            if (str_starts_with($stockRequestItemId, 'direct_')) {
+                $outboundId = str_replace('direct_', '', $stockRequestItemId);
+                $outbound = \App\Models\Outbound::find($outboundId);
+                
+                if (!$outbound || $outbound->client_id !== Auth::id()) {
+                    return redirect()->route('client.account', ['tab' => 'member-distribution'])->with('error', 'The selected stock request item id is invalid.');
+                }
+            } else {
+                $stockRequestItem = \App\Models\StockRequestItem::find($stockRequestItemId);
+                
+                if (!$stockRequestItem || $stockRequestItem->request->client_id !== Auth::id()) {
+                    return redirect()->route('client.account', ['tab' => 'member-distribution'])->with('error', 'The selected stock request item id is invalid.');
+                }
+            }
         }
 
         $member = ClientMember::findOrFail($validated['member_id']);
@@ -514,21 +594,45 @@ class AccountController extends Controller
             abort(403);
         }
 
-        $item = StockRequestItem::with('request')->findOrFail($validated['stock_request_item_id']);
-        if ($item->request->client_id !== Auth::id()) {
-            if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        // Handle both regular stock request items and direct request items
+        $stockRequestItemId = $validated['stock_request_item_id'];
+        $isDirectRequest = str_starts_with($stockRequestItemId, 'direct_');
+        
+        if ($isDirectRequest) {
+            // Handle direct request items
+            $outboundId = str_replace('direct_', '', $stockRequestItemId);
+            $outbound = \App\Models\Outbound::with('stock')->findOrFail($outboundId);
+            
+            if ($outbound->client_id !== Auth::id()) {
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+                }
+                abort(403);
             }
-            abort(403);
+            
+            $stockId = $outbound->stock_id;
+            $item = null; // No stock request item for direct requests
+        } else {
+            // Handle regular stock request items
+            $item = StockRequestItem::with('request')->findOrFail($stockRequestItemId);
+            
+            if ($item->request->client_id !== Auth::id()) {
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+                }
+                abort(403);
+            }
+            
+            $stockId = $item->stock_id;
         }
-
-        // Check remaining inventory using accumulated logic (same as StockController)
-        $stockId = $item->stock_id;
+        
+        // Get the client ID
+        $clientId = Auth::id();
         
         // Get all approved inventory items for this client and stock
         $allStockItems = StockRequestItem::with('stock')
-            ->whereHas('request', function ($query) use ($item) {
-                $query->where('client_id', $item->request->client_id)
+            ->whereHas('request', function ($query) use ($clientId) {
+                $query->where('client_id', $clientId)
                       ->whereIn('status', ['approved', 'ready_to_receive', 'released']);
             })
             ->where('stock_id', $stockId)
@@ -545,7 +649,7 @@ class AccountController extends Controller
         }
         
         // Add direct requests for this stock
-        $directRequests = Outbound::where('client_id', $item->request->client_id)
+        $directRequests = Outbound::where('client_id', $clientId)
             ->where('stock_id', $stockId)
             ->where('is_direct_request', true)
             ->where('approval', 'approved')
@@ -554,8 +658,8 @@ class AccountController extends Controller
             
         foreach ($directRequests as $directRequest) {
             $deductedFromDirect = ClientDirectDeduction::where('stock_request_item_id', null)
-                ->whereHas('member', function($query) use ($item) {
-                    $query->where('client_id', $item->request->client_id);
+                ->whereHas('member', function($query) use ($clientId) {
+                    $query->where('client_id', $clientId);
                 })
                 ->where('created_at', '>=', $directRequest->created_at)
                 ->sum('deducted_qty');
@@ -577,20 +681,34 @@ class AccountController extends Controller
         }
 
         // Create distribution for the member using the correct table structure
-        $distribution = ClientMemberDistribution::firstOrNew([
-            'member_id' => $member->id,
-            'stock_request_item_id' => $item->id,
-        ]);
-        $distribution->distributed_qty = ($distribution->distributed_qty ?? 0) + $validated['distributed_qty'];
-        $distribution->save();
+        if ($isDirectRequest) {
+            // For direct requests, we need to handle differently since there's no stock_request_item_id
+            // Create a direct deduction record instead
+            ClientDirectDeduction::create([
+                'client_id' => $clientId,
+                'stock_request_item_id' => null,
+                'member_id' => $member->id,
+                'deducted_qty' => $validated['distributed_qty'],
+                'reason' => 'Member distribution - ' . $outbound->stock->description ?? 'Direct Request Item',
+                'received_by' => Auth::user()->name,
+            ]);
+        } else {
+            // For regular stock request items
+            $distribution = ClientMemberDistribution::firstOrNew([
+                'member_id' => $member->id,
+                'stock_request_item_id' => $item->id,
+            ]);
+            $distribution->distributed_qty = ($distribution->distributed_qty ?? 0) + $validated['distributed_qty'];
+            $distribution->save();
+        }
 
         // Deduct from accumulated inventory by updating distributed_qty across multiple items if needed
         $remainingToDeduct = $validated['distributed_qty'];
         
         // Get all available items for this stock, ordered by creation date (FIFO)
         $availableItems = StockRequestItem::with('stock')
-            ->whereHas('request', function ($query) use ($item) {
-                $query->where('client_id', $item->request->client_id)
+            ->whereHas('request', function ($query) use ($clientId) {
+                $query->where('client_id', $clientId)
                       ->whereIn('status', ['approved', 'ready_to_receive', 'released']);
             })
             ->where('stock_id', $stockId)
@@ -625,7 +743,7 @@ class AccountController extends Controller
     {
         $validated = $request->validate([
             'member_id' => 'required|exists:client_members,id',
-            'distribution_id' => 'required|exists:client_member_distributions,id',
+            'distribution_id' => 'required|string',
             'deducted_qty' => 'required|integer|min:1',
         ]);
 
@@ -634,30 +752,68 @@ class AccountController extends Controller
             abort(403);
         }
 
-        $distribution = ClientMemberDistribution::findOrFail($validated['distribution_id']);
-        if ($distribution->member_id !== $member->id) {
-            abort(403);
+        $distributionId = $validated['distribution_id'];
+        $isDirectRequest = str_starts_with($distributionId, 'direct_');
+
+        if ($isDirectRequest) {
+            // Handle direct request items
+            $directDeductionId = str_replace('direct_', '', $distributionId);
+            $directDeduction = ClientDirectDeduction::findOrFail($directDeductionId);
+            
+            if ($directDeduction->member_id !== $member->id || $directDeduction->stock_request_item_id !== null) {
+                abort(403);
+            }
+
+            // Check if trying to deduct more than available
+            if ($validated['deducted_qty'] > $directDeduction->deducted_qty) {
+                return redirect()->route('client.account', ['tab' => 'members'])->with('error', 'Cannot deduct more items than available.');
+            }
+
+            // Create a usage record to track that this direct request item has been used
+            ClientDirectDeduction::create([
+                'client_id' => Auth::id(),
+                'stock_request_item_id' => null, // This represents usage of a direct request item
+                'member_id' => $member->id,
+                'deducted_qty' => $validated['deducted_qty'],
+                'reason' => 'Used from direct request - ' . $directDeduction->reason ?? 'Direct Request Item',
+                'received_by' => $validated['received_by'] ?? Auth::user()->name,
+            ]);
+
+            // Update the original direct deduction to show it's been used
+            $directDeduction->deducted_qty = $directDeduction->deducted_qty - $validated['deducted_qty'];
+            if ($directDeduction->deducted_qty <= 0) {
+                $directDeduction->delete();
+            } else {
+                $directDeduction->save();
+            }
+
+        } else {
+            // Handle regular distribution items
+            $distribution = ClientMemberDistribution::findOrFail($distributionId);
+            if ($distribution->member_id !== $member->id) {
+                abort(403);
+            }
+
+            // Check if trying to deduct more than available
+            $availableQty = $distribution->distributed_qty - ($distribution->used_qty ?? 0);
+            if ($validated['deducted_qty'] > $availableQty) {
+                return redirect()->route('client.account', ['tab' => 'members'])->with('error', 'Cannot deduct more items than available.');
+            }
+
+            // Create a direct deduction record for Transaction History
+            ClientDirectDeduction::create([
+                'client_id' => Auth::id(),
+                'stock_request_item_id' => $distribution->stockRequestItem->id,
+                'member_id' => $member->id,
+                'deducted_qty' => $validated['deducted_qty'],
+                'reason' => 'Member inventory deduction - ' . $distribution->stockRequestItem->stock->description ?? 'Item',
+                'received_by' => $validated['received_by'] ?? Auth::user()->name,
+            ]);
+
+            // Update used_qty
+            $distribution->used_qty = ($distribution->used_qty ?? 0) + $validated['deducted_qty'];
+            $distribution->save();
         }
-
-        // Check if trying to deduct more than available
-        $availableQty = $distribution->distributed_qty - ($distribution->used_qty ?? 0);
-        if ($validated['deducted_qty'] > $availableQty) {
-            return redirect()->route('client.account', ['tab' => 'members'])->with('error', 'Cannot deduct more items than available.');
-        }
-
-        // Create a direct deduction record for Transaction History
-        ClientDirectDeduction::create([
-            'client_id' => Auth::id(),
-            'stock_request_item_id' => $distribution->stockRequestItem->id,
-            'member_id' => $member->id,
-            'deducted_qty' => $validated['deducted_qty'],
-            'reason' => 'Member inventory deduction - ' . $distribution->stockRequestItem->stock->description ?? 'Item',
-            'received_by' => $validated['received_by'] ?? Auth::user()->name,
-        ]);
-
-        // Update used_qty
-        $distribution->used_qty = ($distribution->used_qty ?? 0) + $validated['deducted_qty'];
-        $distribution->save();
 
         return redirect()->route('client.account', ['tab' => 'members'])->with('success', 'Items deducted successfully.');
     }
