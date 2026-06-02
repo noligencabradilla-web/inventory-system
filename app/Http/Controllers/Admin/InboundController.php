@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Inbound;
+use App\Models\InboundAllocation;
 use App\Models\Stock;
+use App\Models\StockAllocation;
 use Dompdf\Dompdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,11 +44,23 @@ class InboundController extends Controller
         ]);
 
         DB::transaction(function () use ($data) {
-            Inbound::create($data);
+            $newInbound = Inbound::create($data);
 
             $stock = Stock::findOrFail($data['stock_id']);
             $stock->increment('total', $data['total']);
             $stock->increment('stock', $data['total']);
+
+            $newInboundAllocation = InboundAllocation::create([
+                "inbound_id" => $newInbound->id,
+                "stock_id" => $stock->id,
+                "office_id" => 24,
+                "allocation" => $data['total'],
+            ]);
+            StockAllocation::create([
+                "inbound_allocation_id" => $newInboundAllocation->id,
+                "allocation" => $data['total'],
+                "outstanding" => $data['total'],
+            ]);
         });
 
         return redirect()
@@ -317,7 +331,7 @@ class InboundController extends Controller
             ->orderBy('description')
             ->limit(10)
             ->get()
-            ->map(fn ($stock) => [
+            ->map(fn($stock) => [
                 'id' => $stock->id,
                 'description' => $stock->description,
                 'id_no' => $stock->id_no,
