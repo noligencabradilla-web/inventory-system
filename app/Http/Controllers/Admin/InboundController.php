@@ -17,50 +17,88 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Color;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Services\StockAllocationService;
 
 class InboundController extends Controller
 {
     public function index(Request $request)
     {
-        $inbounds = $this->inboundQuery($request)
+        $inbounds = Inbound::query()
+            ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
+            ->leftJoin('inbound_allocations', 'inbounds.id', '=', 'inbound_allocations.inbound_id')
+            ->select(
+                'inbounds.id',
+                'stocks.id_no',
+                'stocks.description',
+                'stocks.unit',
+                'inbounds.total',
+                DB::raw('COALESCE(SUM(inbound_allocations.allocation),0) as allocated')
+            )
+            ->groupBy(
+                'inbounds.id',
+                'stocks.id_no',
+                'stocks.description',
+                'stocks.unit',
+                'inbounds.total'
+            )
             ->orderByDesc('inbounds.created_at')
             ->get();
 
-        return view('admin.inbound.index', compact('inbounds'));
+        $spOffices = \App\Models\SPOffices::where('is_active', true)->orderBy('created_at', 'desc')->get();
+        $stocks = \App\Models\Stock::all();
+
+        return view('admin.inbound.index', compact('inbounds', 'spOffices', 'stocks'));
     }
 
     public function create()
     {
         $stocks = Stock::orderBy('description')->get();
+        $spOffices = \App\Models\SPOffices::where('is_active', true)->orderBy('created_at', 'desc')->get();
 
-        return view('admin.inbound.create', compact('stocks'));
+        return view('admin.inbound.create', compact('stocks', 'spOffices'));
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $validated = $request->validate([
             'stock_id' => 'required|exists:stocks,id',
             'total' => 'required|integer|min:1',
+            // 'office_id' => 'nullable|exists:s_p_offices,id',
+            "office_allocation" => 'nullable|array',
+            "office_allocation.*.office_id" => 'required_with:allocate|exists:s_p_offices,id',
+            "office_allocation.*.quantity" => 'required_with:allocate|integer|min:1'
         ]);
 
-        DB::transaction(function () use ($data) {
-            $newInbound = Inbound::create($data);
+        $hasAllocation = isset($validated['office_allocation']) && is_array($validated['office_allocation']);
 
-            $stock = Stock::findOrFail($data['stock_id']);
-            $stock->increment('total', $data['total']);
-            $stock->increment('stock', $data['total']);
+        DB::transaction(function () use ($validated, $hasAllocation) {
+            $newInbound = Inbound::create([
+                'stock_id' => $validated['stock_id'],
+                'total' => $validated['total'],
+            ]);
 
-            $newInboundAllocation = InboundAllocation::create([
-                "inbound_id" => $newInbound->id,
-                "stock_id" => $stock->id,
-                "office_id" => 24,
-                "allocation" => $data['total'],
-            ]);
-            StockAllocation::create([
-                "inbound_allocation_id" => $newInboundAllocation->id,
-                "allocation" => $data['total'],
-                "outstanding" => $data['total'],
-            ]);
+            $stock = Stock::findOrFail($validated['stock_id']);
+            $stock->increment('total', $validated['total']);
+            $stock->increment('stock', $validated['total']);
+
+            if ($hasAllocation) {
+                foreach ($validated['office_allocation'] as $allocation) {
+                    if ($allocation['quantity'] > 0) {
+
+                        $officeId = $allocation['office_id'];
+                        $quantity = $allocation['quantity'];
+                        $newInboundAllocation = InboundAllocation::create([
+                            'inbound_id' => $newInbound->id,
+                            'stock_id' => $stock->id,
+                            'office_id' => $officeId,
+                            'allocation' => $quantity,
+                        ]);
+                        $newInboundAllocationId = $newInboundAllocation->id;
+                        $stockService = new StockAllocationService();
+                        $stockService->createStockAllocation($newInboundAllocationId, $quantity, $quantity);
+                    }
+                }
+            }
         });
 
         return redirect()
@@ -311,6 +349,26 @@ class InboundController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    public function showInboundAllocations(Inbound $inbound)
+    {
+        $allocations = $inbound->allocations;
+        $allocationsMap = $allocations->map(function ($item) {
+            return [
+                'office_name' => $item->office->office ?? 'Unknown',
+                'allocation' => $item->allocation,
+                // 'created_at' => $item->created_at->toDateTimeString(),
+            ];
+        });
+        $data = [
+            'inbound_id' => $inbound->id,
+            'stock_description' => $inbound->stock->description,
+            'total' => $inbound->total,
+            'created_at' => \Carbon\Carbon::parse($inbound->created_at)->format('F j, Y'),
+            'allocations' => $allocationsMap,
+        ];
+        return response()->json($data);
     }
 
     public function show(Inbound $inbound)

@@ -15,4 +15,8 @@ class Inbound extends Model
     {
         return $this->belongsTo(Stock::class);
     }
+    public function allocations()
+    {
+        return $this->hasMany(InboundAllocation::class);
+    }
 }
