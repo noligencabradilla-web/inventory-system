@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('stock_allocations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('inbound_allocation_id')->constrained("inbounds")->cascadeOnDelete();
+            $table->foreignId('inbound_allocation_id')->constrained("inbound_allocations")->cascadeOnDelete();
             $table->integer("allocation");
             $table->integer("outstanding"); // remaining qty for allocation
             $table->timestamps();
