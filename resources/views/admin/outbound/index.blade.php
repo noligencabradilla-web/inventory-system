@@ -23,7 +23,7 @@
         font-weight:700;
     }
     .btn-link:hover{ background: rgba(37,99,235,.18); }
-    .btn-add-outbound:hover{ 
+    .btn-add-outbound:hover{
         background: linear-gradient(135deg, #2563eb, #1e40af) !important;
         transform: translateY(-3px) !important;
         box-shadow: 0 8px 20px rgba(59,130,246,0.3) !important;
@@ -108,9 +108,9 @@
         color:var(--text);
     }
 
-    .ob-toggle{ 
-        color:var(--muted); 
-        font-size:12px; 
+    .ob-toggle{
+        color:var(--muted);
+        font-size:12px;
         font-weight:600;
         display:flex;
         align-items:center;
@@ -136,13 +136,13 @@
     }
 
     .pill{
-        display:inline-block; 
-        padding:5px 12px; 
+        display:inline-block;
+        padding:5px 12px;
         border-radius:999px;
         border:1px solid rgba(37,99,235,.45);
         background: rgba(37,99,235,.14);
         color: var(--blue);
-        font-size:12px; 
+        font-size:12px;
         font-weight:800;
     }
     .pill.orange{
@@ -267,7 +267,7 @@
         margin:0;
         font-size:16px;
     }
-    
+
     /* Modal button hover effects */
     .modal-btn-primary:hover{
         background: linear-gradient(135deg, #2563eb, #1e40af) !important;
@@ -280,7 +280,7 @@
         transform: translateY(-1px) !important;
         box-shadow: 0 4px 8px rgba(59,130,246,0.2) !important;
     }
-    
+
     .modal-btn-secondary:hover{
         background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
         transform: translateY(-2px) !important;
@@ -307,7 +307,7 @@
 </div>
 @php
     $stocks = \App\Models\Stock::all();
-    $clients = \App\Models\User::where('role', 'client')->get();
+    // $clients = \App\Models\User::where('role', 'client')->get();
     $pendingRequests = class_exists(\App\Models\StockRequest::class) ? \App\Models\StockRequest::where('status','pending')->count() : 0;
     $pendingPR = class_exists(\App\Models\PasswordResetRequest::class) ? \App\Models\PasswordResetRequest::where('status','pending')->count() : 0;
     $totalPending = $pendingRequests + $pendingPR;
@@ -470,16 +470,16 @@
 <div id="outboundModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); z-index:9999; justify-content:center; align-items:center;">
     <div style="background:#ffffff; border-radius:16px; padding:24px; width:520px; max-width:95%; box-shadow:0 18px 40px rgba(2,6,23,.2);">
         <h3 style="margin:0 0 20px 0; font-size:18px; font-weight:800; color:#1e293b;">Add Outbound</h3>
-        
+
         <form id="outboundForm" method="POST" action="{{ route('outbound.store') }}">
             @csrf
-            
+
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Select Stock</label>
                 <div style="position:relative;">
                     <!-- Hidden input to store the selected stock ID -->
                     <input type="hidden" name="stock_id" id="stockIdInput" required>
-                    
+
                     <!-- Custom dropdown trigger -->
                     <div id="stockDropdown" style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); cursor:pointer; position:relative;">
                         <span id="selectedStockText">-- Choose a stock --</span>
@@ -487,14 +487,14 @@
                             <path d="M6 9l6 6 6-6"></path>
                         </svg>
                     </div>
-                    
+
                     <!-- Custom dropdown with integrated search -->
                     <div id="stockDropdownMenu" style="position:absolute; top:100%; left:0; right:0; background:#ffffff; border:2px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 25px rgba(15,23,42,.15); margin-top:4px; max-height:300px; overflow-y:auto; z-index:1000; display:none;">
                         <!-- Search bar inside dropdown -->
                         <div style="position:relative; border-bottom:1px solid #e2e8f0;">
                             <input type="text" id="stockSearchInput" placeholder="Search stocks..." style="width:100%; padding:12px 14px; border:none; border-radius:0; font-size:14px; color:#374151; background:#ffffff; outline:none;">
                         </div>
-                        
+
                         <!-- Stock options -->
                         <div id="stockOptions">
                             @foreach($stocks as $stock)
@@ -507,35 +507,36 @@
                     </div>
                 </div>
             </div>
-            
+
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Client</label>
                 <div style="position:relative;">
                     <!-- Hidden input to store the selected client ID -->
                     <input type="hidden" name="client_id" id="clientIdInput" required>
                     <input type="hidden" name="office" id="officeInput">
-                    
+                    <input type="hidden" name="office_id" id="officeIdInput">
+
                     <!-- Input field for client/member/non-member entry -->
-                    <input 
-                        type="text" 
-                        id="clientDropdown" 
-                        name="recipient_name" 
+                    <input
+                        type="text"
+                        id="clientDropdown"
+                        name="recipient_name"
                         placeholder="Type client name, member name, or non-member name..."
                         style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); outline:none;"
                     >
-                    
+
                     <!-- Custom dropdown -->
                     <div id="clientDropdownMenu" style="position:absolute; top:100%; left:0; right:0; background:#ffffff; border:2px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 25px rgba(15,23,42,.15); margin-top:4px; max-height:300px; overflow-y:auto; z-index:1000; display:none;">
                         <!-- Client and Member options -->
                         <div id="clientOptions">
                             @foreach($clients as $client)
-                                <div class="client-option-item" data-type="client" data-client-id="{{ $client->id }}" data-client-name="{{ $client->name }}" data-client-office="{{ $client->office ?? 'Not specified' }}" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
+                                <div class="client-option-item" data-type="client" data-client-id="{{ $client->id }}" data-client-name="{{ $client->name }}" data-client-office="{{ $client->office ?? 'Not specified' }}" data-client-office-id="{{ $client->office_id }}" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
                                     <div style="font-weight:600; color:#1e40af;">{{ $client->name }}</div>
                                     <div style="font-size:12px; color:#64748b; margin-top:2px;">Client • Office: {{ $client->office ?? 'Not specified' }}</div>
                                 </div>
                             @endforeach
                             @foreach($members as $member)
-                                <div class="client-option-item" data-type="member" data-client-id="{{ $member->client_id }}" data-member-id="{{ $member->id }}" data-client-name="{{ $member->name }}" data-client-office="{{ $member->client->office ?? 'non office member' }}" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
+                                <div class="client-option-item" data-type="member" data-client-id="{{ $member->client_id }}" data-member-id="{{ $member->id }}" data-client-name="{{ $member->name }}" data-client-office="{{ $member->client->office ?? 'non office member' }}" data-client-office-id="{{ $member->client->s_p_office_id }}" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
                                     <div style="font-weight:600; color:#059669;">{{ $member->name }}</div>
                                     <div style="font-size:12px; color:#64748b; margin-top:2px;">Member of {{ $member->client->name }} • Office: {{ $member->client->office ?? 'non office member' }}</div>
                                 </div>
@@ -544,24 +545,24 @@
                     </div>
                 </div>
             </div>
-            
+
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Office/Department</label>
                 <div id="officeDisplay" style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#64748b; background:#f8fafc; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05);">
                     Select a client to view their office
                 </div>
             </div>
-            
+
             <div style="margin-bottom:20px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Quantity</label>
                 <input type="number" name="total" id="modalTotal" min="1" value="1" required style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05);">
             </div>
-            
+
             <div style="margin-bottom:20px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Reason for Request</label>
                 <textarea name="reason" placeholder="Enter reason for this outbound request..." style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); resize:vertical; min-height:80px; outline:none;"></textarea>
             </div>
-            
+
             <div style="display:flex; gap:12px;">
                 <button type="submit" class="modal-btn-primary" style="flex:1; padding:12px 20px; border-radius:10px; border:2px solid #3b82f6; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#ffffff; font-weight:700; transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow:0 4px 12px rgba(59,130,246,0.2); position:relative; overflow:hidden; transform:translateY(0); pointer-events:auto;">
                     <span style="position:relative; z-index:1;">Add Outbound</span>
@@ -617,7 +618,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const stockIdInput = document.getElementById('stockIdInput');
     const selectedStockText = document.getElementById('selectedStockText');
     const stockOptions = document.querySelectorAll('.stock-option-item');
-    
+
     if (stockDropdown && stockDropdownMenu && stockSearchInput) {
         // Toggle dropdown when clicking on the trigger
         stockDropdown.addEventListener('click', function(e) {
@@ -630,18 +631,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 resetStockOptions();
             }
         });
-        
+
         // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!stockDropdown.contains(e.target) && !stockDropdownMenu.contains(e.target)) {
                 stockDropdownMenu.style.display = 'none';
             }
         });
-        
+
         // Search functionality
         stockSearchInput.addEventListener('input', function() {
             const searchTerm = stockSearchInput.value.toLowerCase();
-            
+
             stockOptions.forEach(option => {
                 const stockText = option.dataset.stockText.toLowerCase();
                 if (stockText.includes(searchTerm)) {
@@ -651,42 +652,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
-        
+
         // Handle option selection
         stockOptions.forEach(option => {
             option.addEventListener('click', function(e) {
                 e.stopPropagation();
                 const stockId = option.dataset.stockId;
                 const stockText = option.dataset.stockText;
-                
+
                 stockIdInput.value = stockId;
                 selectedStockText.textContent = stockText;
                 stockDropdownMenu.style.display = 'none';
-                
+
                 // Add hover effect
                 option.style.background = '#f8fafc';
                 setTimeout(() => {
                     option.style.background = '';
                 }, 200);
             });
-            
+
             // Add hover effect
             option.addEventListener('mouseenter', function() {
                 option.style.background = '#f8fafc';
             });
-            
+
             option.addEventListener('mouseleave', function() {
                 option.style.background = '';
             });
         });
-        
+
         function resetStockOptions() {
             stockOptions.forEach(option => {
                 option.style.display = 'block';
             });
         }
     }
-    
+
     // Client dropdown functionality
     const clientDropdown = document.getElementById('clientDropdown');
     const clientDropdownMenu = document.getElementById('clientDropdownMenu');
@@ -694,21 +695,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const officeInput = document.getElementById('officeInput');
     const officeDisplay = document.getElementById('officeDisplay');
     const clientOptions = document.querySelectorAll('.client-option-item');
-    
+
     if (clientDropdown && clientDropdownMenu) {
         // Show dropdown when input receives focus
         clientDropdown.addEventListener('focus', function(e) {
             clientDropdownMenu.style.display = 'block';
             resetClientOptions();
         });
-        
+
         // Handle input typing to show dropdown and filter results
         clientDropdown.addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
-            
+
             if (searchTerm.length >= 1) {
                 clientDropdownMenu.style.display = 'block';
-                
+
                 let hasMatches = false;
                 // Filter options based on input (both clients and members)
                 clientOptions.forEach(option => {
@@ -716,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const clientOffice = option.dataset.clientOffice.toLowerCase();
                     const type = option.dataset.type || 'client';
                     const searchText = clientName + ' ' + clientOffice + ' ' + type;
-                    
+
                     if (searchText.includes(searchTerm)) {
                         option.style.display = 'block';
                         hasMatches = true;
@@ -724,7 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         option.style.display = 'none';
                     }
                 });
-                
+
                 // Handle non-member option
                 if (!hasMatches && searchTerm.length >= 2) {
                     addNonMemberOption();
@@ -736,14 +737,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 removeNonMemberOption();
             }
         });
-        
+
         // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!clientDropdown.contains(e.target) && !clientDropdownMenu.contains(e.target)) {
                 clientDropdownMenu.style.display = 'none';
             }
         });
-        
+
         // Helper functions for non-member option handling
         function addNonMemberOption() {
             let nonMemberOption = document.getElementById('nonMemberOption');
@@ -756,21 +757,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div style="font-weight:600; color:#dc2626;">${clientDropdown.value}</div>
                     <div style="font-size:12px; color:#6b7280; margin-top:2px;">Non-member - Will create urgent recipient</div>
                 `;
-                
+
                 nonMemberOption.addEventListener('click', function(e) {
                     e.stopPropagation();
                     const recipientName = clientDropdown.value;
-                    
+
                     // Clear client data and set as urgent recipient
                     clientIdInput.value = '';
                     officeInput.value = 'Not specified';
                     clientDropdown.value = recipientName;
-                    
+
                     // Add hidden fields for urgent recipient
                     let urgentNameInput = document.getElementById('urgent_recipient_name');
                     let urgentOfficeInput = document.getElementById('urgent_recipient_office');
                     let isUrgentInput = document.getElementById('is_urgent_outbound');
-                    
+
                     if (!urgentNameInput) {
                         urgentNameInput = document.createElement('input');
                         urgentNameInput.type = 'hidden';
@@ -778,7 +779,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         urgentNameInput.name = 'urgent_recipient_name';
                         clientDropdown.parentNode.appendChild(urgentNameInput);
                     }
-                    
+
                     if (!urgentOfficeInput) {
                         urgentOfficeInput = document.createElement('input');
                         urgentOfficeInput.type = 'hidden';
@@ -786,7 +787,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         urgentOfficeInput.name = 'urgent_recipient_office';
                         clientDropdown.parentNode.appendChild(urgentOfficeInput);
                     }
-                    
+
                     if (!isUrgentInput) {
                         isUrgentInput = document.createElement('input');
                         isUrgentInput.type = 'hidden';
@@ -795,27 +796,27 @@ document.addEventListener('DOMContentLoaded', function() {
                         isUrgentInput.value = 'true';
                         clientDropdown.parentNode.appendChild(isUrgentInput);
                     }
-                    
+
                     urgentNameInput.value = recipientName;
                     urgentOfficeInput.value = officeInput.value;
-                    
+
                     if (officeDisplay) {
                         officeDisplay.textContent = 'Non-member';
                         officeDisplay.style.color = '#dc2626';
                         officeDisplay.style.background = '#fef2f2';
                     }
-                    
+
                     clientDropdownMenu.style.display = 'none';
                 });
-                
+
                 nonMemberOption.addEventListener('mouseenter', function() {
                     this.style.background = '#fef2f2';
                 });
-                
+
                 nonMemberOption.addEventListener('mouseleave', function() {
                     this.style.background = '';
                 });
-                
+
                 document.getElementById('clientOptions').appendChild(nonMemberOption);
             } else {
                 nonMemberOption.querySelector('div').textContent = clientDropdown.value;
@@ -829,7 +830,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 nonMemberOption.style.display = 'none';
             }
         }
-        
+
         // Handle option selection
         clientOptions.forEach(option => {
             option.addEventListener('click', function(e) {
@@ -839,11 +840,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const clientName = option.dataset.clientName;
                 const clientOffice = option.dataset.clientOffice;
                 const memberId = option.dataset.memberId;
-                
+                const officeId = option.dataset.clientOfficeId;
+                console.log(officeId);
                 clientIdInput.value = clientId;
                 officeInput.value = clientOffice;
                 clientDropdown.value = clientName;
-                
+                officeIdInput.value = officeId;
+
                 // Handle member-specific logic
                 if (type === 'member' && memberId) {
                     // Add member_id hidden field
@@ -856,7 +859,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         clientDropdown.parentNode.appendChild(memberInput);
                     }
                     memberInput.value = memberId;
-                    
+
                     // Add is_direct_request hidden field
                     let directRequestInput = document.getElementById('is_direct_request');
                     if (!directRequestInput) {
@@ -867,7 +870,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         directRequestInput.value = 'true';
                         clientDropdown.parentNode.appendChild(directRequestInput);
                     }
-                    
+
                     // Disable office field for non-office members
                     if (clientOffice === 'non office member') {
                         officeInput.value = 'non office member';
@@ -885,24 +888,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 officeDisplay.style.color = '#374151';
                 officeDisplay.style.background = '#ffffff';
                 clientDropdownMenu.style.display = 'none';
-                
+
                 // Add hover effect
                 option.style.background = '#f8fafc';
                 setTimeout(() => {
                     option.style.background = '';
                 }, 200);
             });
-            
+
             // Add hover effect
             option.addEventListener('mouseenter', function() {
                 option.style.background = '#f8fafc';
             });
-            
+
             option.addEventListener('mouseleave', function() {
                 option.style.background = '';
             });
         });
-        
+
         function resetClientOptions() {
             clientOptions.forEach(option => {
                 option.style.display = 'block';

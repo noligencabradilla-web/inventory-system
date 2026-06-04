@@ -54,6 +54,10 @@ class User extends Authenticatable
     {
         return $this->belongsTo(SPOffices::class, 's_p_office_id');
     }
+    public function clientMembers()
+    {
+        return $this->hasMany(ClientMember::class,'client_id');
+    }
 
     public function subaccounts()
     {

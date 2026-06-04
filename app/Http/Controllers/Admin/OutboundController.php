@@ -50,10 +50,18 @@ class OutboundController extends Controller
         }
 
         $outbounds = $query->get();
-        $clients = \App\Models\User::where('role', 'client')->get();
+        $clients = \App\Models\User::join('s_p_offices','s_p_offices.id', '=', 's_p_office_id')->with('clientMembers')->whereRole('client')
+        ->select('users.id', 'name','s_p_offices.id as office_id', 's_p_offices.office')
+        ->get();
         $members = ClientMember::with('client')->get();
         $offices = Outbound::whereNotNull('office')->where('office', '<>', '')->distinct()->orderBy('office')->pluck('office');
 
+        // return response()->json([
+        //     // 'outbounds' => $outbounds,
+        //     'clients' => $clients,
+        //     'members' => $members,
+        //     // 'offices' => $offices,
+        // ]);
         return view('admin.outbound.index', compact('outbounds', 'clients', 'members', 'offices', 'dateFrom', 'dateTo', 'office', 'search'));
     }
 
@@ -128,7 +136,7 @@ class OutboundController extends Controller
     public function store(Request $request)
     {
         $isUrgentOutbound = $request->input('is_urgent_outbound', 'false') === 'true';
-        
+
         if ($isUrgentOutbound) {
             $request->validate([
                 'stock_id'  => 'required|exists:stocks,id',
@@ -142,6 +150,7 @@ class OutboundController extends Controller
                 'stock_id'  => 'required|exists:stocks,id',
                 'client_id' => 'required|exists:users,id',
                 'office'    => 'required|string',
+                'office_id' => 'required|integer|exists:s_p_offices,id',
                 'total'     => 'required|integer|min:1',
                 'reason'    => 'nullable|string|max:1000',
             ]);
@@ -151,7 +160,7 @@ class OutboundController extends Controller
         $data = $request->only('stock_id','total','reason');
         $data['approval'] = 'approved';
         $data['status'] = 'received';
-
+dd($data);
         if ($isUrgentOutbound) {
             // Handle urgent recipient
             $urgentRecipientName = $request->input('urgent_recipient_name');
@@ -170,21 +179,21 @@ class OutboundController extends Controller
                     'office' => $urgentRecipientOffice,
                     'reason' => 'Urgent outbound request',
                 ]);
-                
+
                 $data['urgent_recipient_id'] = $urgentRecipient->id;
                 $data['urgent_recipient_name'] = $urgentRecipientName;
                 $data['urgent_recipient_office'] = $urgentRecipientOffice;
             }
-            
+
             $data['is_urgent_outbound'] = true;
             $data['client_id'] = null;
             $data['office'] = $urgentRecipientOffice;
         } else {
             // Handle regular client or member
             $data['client_id'] = $request->input('client_id');
-            $data['office'] = $request->input('office');
+            $data['office'] = $request->input('office_id');
             $data['is_urgent_outbound'] = false;
-            
+
             // Check if this is a member selection or direct client request
             $memberId = $request->input('member_id');
             if ($memberId) {
