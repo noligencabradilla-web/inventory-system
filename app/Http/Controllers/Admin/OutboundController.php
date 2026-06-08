@@ -12,7 +12,6 @@ use App\Models\UrgentOutboundRecipient;
 use App\Models\ClientMember;
 use App\Models\InboundAllocation;
 use App\Models\StockAllocation;
-use App\Services\StockAllocationService;
 use Dompdf\Dompdf;
 use Illuminate\Support\Facades\DB;
 
@@ -59,12 +58,6 @@ class OutboundController extends Controller
         $members = ClientMember::with('client')->get();
         $offices = Outbound::whereNotNull('office')->where('office', '<>', '')->distinct()->orderBy('office')->pluck('office');
 
-        // return response()->json([
-        //     // 'outbounds' => $outbounds,
-        //     'clients' => $clients,
-        //     'members' => $members,
-        //     // 'offices' => $offices,
-        // ]);
         return view('admin.outbound.index', compact('outbounds', 'clients', 'members', 'offices', 'dateFrom', 'dateTo', 'office', 'search'));
     }
 
@@ -80,11 +73,12 @@ class OutboundController extends Controller
     }
     protected function checkForInboundAllocation($stock_id, $office_id)
     {
-
-        return StockAllocation::whereStockId($stock_id)
-            ->whereOfficeId($office_id)
+        return StockAllocation::where('stock_id', $stock_id)
+            ->where('office_id', $office_id)
             ->whereNotNull('outstanding')
-            ->first();
+            ->where('outstanding', '>', 0)
+            ->orderBy('id')
+            ->get();
     }
     public function show()
     {
@@ -160,24 +154,61 @@ class OutboundController extends Controller
             'total'     => 'required|integer|min:1',
             'reason'    => 'nullable|string|max:1000',
         ]);
-        $hasInboundAllocation = $this->checkForInboundAllocation($validate['stock_id'], $validate['office_id']);
-        if ($hasInboundAllocation) {
+        $allocations = $this->checkForInboundAllocation($validate['stock_id'], $validate['office_id']);
 
-            $payload = [
-                'office_id' => $validate['office_id'],
-                'stock_id' => $validate['stock_id'],
-                'outstanding' => $validate['total']
-            ];
-            $stockService = new StockAllocationService();
-            $stockService->updateStockAllocation($payload);
-        } else {
+        if ($allocations->isNotEmpty()) {
+            $remaining = $validate['total'];
+
+            foreach ($allocations as $allocation) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                if ($allocation->outstanding <= 0) {
+                    continue;
+                }
+
+                $deduct = min($allocation->outstanding, $remaining);
+                $allocation->outstanding = max(0, $allocation->outstanding - $deduct);
+                $allocation->save();
+
+                $remaining -= $deduct;
+            }
         }
+
         return redirect()->route('outbound.index')->with('success', 'Outbound created.');
+    }
+    public function storeOutbound($stock_id, $office_id, $total)
+    {
+        $isDone = false;
+        $allocations = $this->checkForInboundAllocation($stock_id, $office_id);
+
+        if ($allocations->isNotEmpty()) {
+            $remaining = $total;
+
+            foreach ($allocations as $allocation) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                if ($allocation->outstanding <= 0) {
+                    continue;
+                }
+
+                $deduct = min($allocation->outstanding, $remaining);
+                $allocation->outstanding = max(0, $allocation->outstanding - $deduct);
+                $allocation->save();
+
+                $remaining -= $deduct;
+            }
+            $isDone = true;
+        } else $isDone = true;
+
+        return $isDone;
     }
     public function store(Request $request)
     {
         $isUrgentOutbound = $request->input('is_urgent_outbound', 'false') === 'true';
-
         if ($isUrgentOutbound) {
             $request->validate([
                 'stock_id'  => 'required|exists:stocks,id',
@@ -186,22 +217,21 @@ class OutboundController extends Controller
                 'total'     => 'required|integer|min:1',
                 'reason'    => 'nullable|string|max:1000',
             ]);
-        } else {
-            $request->validate([
-                'stock_id'  => 'required|exists:stocks,id',
-                'client_id' => 'required|exists:users,id',
-                'office'    => 'required|string',
-                'office_id' => 'required|integer|exists:s_p_offices,id',
-                'total'     => 'required|integer|min:1',
-                'reason'    => 'nullable|string|max:1000',
-            ]);
         }
+        $request->validate([
+            'stock_id'  => 'required|exists:stocks,id',
+            'client_id' => 'required|exists:users,id',
+            'office'    => 'required|string',
+            'office_id' => 'required|integer|exists:s_p_offices,id',
+            'total'     => 'required|integer|min:1',
+            'reason'    => 'nullable|string|max:1000',
+        ]);
 
         // Approval and status are set automatically when admin creates an outbound
         $data = $request->only('stock_id', 'total', 'reason');
         $data['approval'] = 'approved';
         $data['status'] = 'received';
-        dd($data);
+        // dd($data);
         if ($isUrgentOutbound) {
             // Handle urgent recipient
             $urgentRecipientName = $request->input('urgent_recipient_name');
@@ -229,23 +259,22 @@ class OutboundController extends Controller
             $data['is_urgent_outbound'] = true;
             $data['client_id'] = null;
             $data['office'] = $urgentRecipientOffice;
-        } else {
-            // Handle regular client or member
-            $data['client_id'] = $request->input('client_id');
-            $data['office'] = $request->input('office_id');
-            $data['is_urgent_outbound'] = false;
-
-            // Check if this is a member selection or direct client request
-            $memberId = $request->input('member_id');
-            if ($memberId) {
-                $data['member_id'] = $memberId;
-                $data['is_direct_request'] = true;
-            } else {
-                // This is a direct request from main client/office (no member selected)
-                $data['is_direct_request'] = true;
-            }
         }
+        // Handle regular client or member
+        $data['client_id'] = $request->input('client_id');
+        $data['office'] = $request->input('office');
+        $data['office_id'] = $request->input('office_id');
+        $data['is_urgent_outbound'] = false;
 
+        // Check if this is a member selection or direct client request
+        $memberId = $request->input('member_id');
+        if ($memberId) {
+            $data['member_id'] = $memberId;
+            $data['is_direct_request'] = true;
+        } else {
+            // This is a direct request from main client/office (no member selected)
+            $data['is_direct_request'] = true;
+        }
         // If status is received on create, perform deduction and set deducted_at atomically
         if (($data['status'] ?? '') === 'received') {
             try {
@@ -257,11 +286,15 @@ class OutboundController extends Controller
                         throw new \Exception("Not enough stock to deduct. Available: {$stock->stock}, Outbound: {$data['total']}");
                     }
 
-                    // create outbound with deducted_at
-                    $out = Outbound::create($data + ['deducted_at' => now()]);
 
-                    // decrement stock
-                    $stock->decrement('stock', $data['total']);
+                    $verifyAllocations = $this->storeOutbound($data['stock_id'], $data['office_id'], $data['total']);
+                    if ($verifyAllocations) {
+                        // create outbound with deducted_at
+                        $out = Outbound::create($data + ['deducted_at' => now()]);
+
+                        // decrement stock
+                        $stock->decrement('stock', $data['total']);
+                    }
                 });
             } catch (\Throwable $e) {
                 return back()->with('error', $e->getMessage())->withInput();
