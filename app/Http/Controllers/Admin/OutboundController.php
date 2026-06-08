@@ -10,6 +10,9 @@ use App\Models\StockRequest;
 use App\Models\StockRequestItem;
 use App\Models\UrgentOutboundRecipient;
 use App\Models\ClientMember;
+use App\Models\InboundAllocation;
+use App\Models\StockAllocation;
+use App\Services\StockAllocationService;
 use Dompdf\Dompdf;
 use Illuminate\Support\Facades\DB;
 
@@ -38,21 +41,21 @@ class OutboundController extends Controller
                 $q->whereHas('client', function ($sub) use ($search) {
                     $sub->where('name', 'like', "%{$search}%");
                 })
-                ->orWhere('office', 'like', "%{$search}%")
-                ->orWhereHas('stock', function ($sub) use ($search) {
-                    $sub->where('description', 'like', "%{$search}%")
-                        ->orWhere('id_no', 'like', "%{$search}%");
-                })
-                ->orWhereHas('member', function ($sub) use ($search) {
-                    $sub->where('name', 'like', "%{$search}%");
-                });
+                    ->orWhere('office', 'like', "%{$search}%")
+                    ->orWhereHas('stock', function ($sub) use ($search) {
+                        $sub->where('description', 'like', "%{$search}%")
+                            ->orWhere('id_no', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('member', function ($sub) use ($search) {
+                        $sub->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
         $outbounds = $query->get();
-        $clients = \App\Models\User::join('s_p_offices','s_p_offices.id', '=', 's_p_office_id')->with('clientMembers')->whereRole('client')
-        ->select('users.id', 'name','s_p_offices.id as office_id', 's_p_offices.office')
-        ->get();
+        $clients = \App\Models\User::join('s_p_offices', 's_p_offices.id', '=', 's_p_office_id')->with('clientMembers')->whereRole('client')
+            ->select('users.id', 'name', 's_p_offices.id as office_id', 's_p_offices.office')
+            ->get();
         $members = ClientMember::with('client')->get();
         $offices = Outbound::whereNotNull('office')->where('office', '<>', '')->distinct()->orderBy('office')->pluck('office');
 
@@ -68,8 +71,24 @@ class OutboundController extends Controller
     public function create()
     {
         $stocks = Stock::all();
-        $clients = \App\Models\User::where('role', 'client')->get();
-        return view('admin.outbound.create', compact('stocks', 'clients'));
+        // $clients = \App\Models\User::where('role', 'client')->get();
+        $clients = \App\Models\User::join('s_p_offices', 's_p_offices.id', '=', 's_p_office_id')->with('clientMembers')->whereRole('client')
+            ->select('users.id', 'name', 's_p_offices.id as office_id', 's_p_offices.office')
+            ->get();
+        $members = ClientMember::with('client', 'client.office')->get();
+        return view('admin.outbound.create', compact('stocks', 'clients', 'members'));
+    }
+    protected function checkForInboundAllocation($stock_id, $office_id)
+    {
+
+        return StockAllocation::whereStockId($stock_id)
+            ->whereOfficeId($office_id)
+            ->whereNotNull('outstanding')
+            ->first();
+    }
+    public function show()
+    {
+        return null;
     }
 
     public function searchRecipients(Request $request)
@@ -80,9 +99,9 @@ class OutboundController extends Controller
         if (strlen($term) >= 2) {
             // Search clients
             $clients = \App\Models\User::where('role', 'client')
-                ->where(function($query) use ($term) {
+                ->where(function ($query) use ($term) {
                     $query->where('name', 'like', "%{$term}%")
-                          ->orWhere('office', 'like', "%{$term}%");
+                        ->orWhere('office', 'like', "%{$term}%");
                 })
                 ->get();
 
@@ -97,9 +116,9 @@ class OutboundController extends Controller
 
             // Search client members
             $members = ClientMember::with('client')
-                ->where(function($query) use ($term) {
+                ->where(function ($query) use ($term) {
                     $query->where('name', 'like', "%{$term}%")
-                          ->orWhere('email', 'like', "%{$term}%");
+                        ->orWhere('email', 'like', "%{$term}%");
                 })
                 ->get();
 
@@ -133,6 +152,28 @@ class OutboundController extends Controller
         return response()->json($results);
     }
 
+    public function storeAjaxOutbound(Request $request)
+    {
+        $validate =  $request->validate([
+            'stock_id'  => 'required|exists:stocks,id',
+            'office_id'  => 'required|exists:s_p_offices,id',
+            'total'     => 'required|integer|min:1',
+            'reason'    => 'nullable|string|max:1000',
+        ]);
+        $hasInboundAllocation = $this->checkForInboundAllocation($validate['stock_id'], $validate['office_id']);
+        if ($hasInboundAllocation) {
+
+            $payload = [
+                'office_id' => $validate['office_id'],
+                'stock_id' => $validate['stock_id'],
+                'outstanding' => $validate['total']
+            ];
+            $stockService = new StockAllocationService();
+            $stockService->updateStockAllocation($payload);
+        } else {
+        }
+        return redirect()->route('outbound.index')->with('success', 'Outbound created.');
+    }
     public function store(Request $request)
     {
         $isUrgentOutbound = $request->input('is_urgent_outbound', 'false') === 'true';
@@ -157,10 +198,10 @@ class OutboundController extends Controller
         }
 
         // Approval and status are set automatically when admin creates an outbound
-        $data = $request->only('stock_id','total','reason');
+        $data = $request->only('stock_id', 'total', 'reason');
         $data['approval'] = 'approved';
         $data['status'] = 'received';
-dd($data);
+        dd($data);
         if ($isUrgentOutbound) {
             // Handle urgent recipient
             $urgentRecipientName = $request->input('urgent_recipient_name');
@@ -208,7 +249,7 @@ dd($data);
         // If status is received on create, perform deduction and set deducted_at atomically
         if (($data['status'] ?? '') === 'received') {
             try {
-                DB::transaction(function() use ($data) {
+                DB::transaction(function () use ($data) {
                     // lock stock
                     $stock = Stock::where('id', $data['stock_id'])->lockForUpdate()->firstOrFail();
 
@@ -235,7 +276,7 @@ dd($data);
         // If approval isn't approved and status isn't received, create a pending StockRequest
         if (($data['approval'] ?? '') !== 'approved' && ($data['status'] ?? '') !== 'received') {
             try {
-                DB::transaction(function() use ($data, $out) {
+                DB::transaction(function () use ($data, $out) {
                     $req = StockRequest::create([
                         'client_id' => $data['client_id'],
                         'office' => $data['office'] ?? '',
@@ -251,7 +292,7 @@ dd($data);
                 });
             } catch (\Throwable $e) {
                 // log but continue — outbound was created
-                \Log::error('Failed to create stock request for outbound: '.$e->getMessage());
+                \Log::error('Failed to create stock request for outbound: ' . $e->getMessage());
             }
         }
 
@@ -297,7 +338,6 @@ dd($data);
                     $ob->status = 'received';
                     $ob->save();
                 });
-
             } catch (\Throwable $e) {
                 return back()->with('error', $e->getMessage());
             }
@@ -335,14 +375,14 @@ dd($data);
                 $q->whereHas('client', function ($sub) use ($search) {
                     $sub->where('name', 'like', "%{$search}%");
                 })
-                ->orWhere('office', 'like', "%{$search}%")
-                ->orWhereHas('stock', function ($sub) use ($search) {
-                    $sub->where('description', 'like', "%{$search}%")
-                        ->orWhere('id_no', 'like', "%{$search}%");
-                })
-                ->orWhereHas('member', function ($sub) use ($search) {
-                    $sub->where('name', 'like', "%{$search}%");
-                });
+                    ->orWhere('office', 'like', "%{$search}%")
+                    ->orWhereHas('stock', function ($sub) use ($search) {
+                        $sub->where('description', 'like', "%{$search}%")
+                            ->orWhere('id_no', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('member', function ($sub) use ($search) {
+                        $sub->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 

@@ -25,14 +25,14 @@ class InboundController extends Controller
     {
         $inbounds = Inbound::query()
             ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
-            ->leftJoin('inbound_allocations', 'inbounds.id', '=', 'inbound_allocations.inbound_id')
+            ->leftJoin('stock_allocations', 'inbounds.id', '=', 'inbound_id')
             ->select(
                 'inbounds.id',
                 'stocks.id_no',
                 'stocks.description',
                 'stocks.unit',
                 'inbounds.total',
-                DB::raw('COALESCE(SUM(inbound_allocations.allocation),0) as allocated')
+                DB::raw('COALESCE(SUM(allocation),0) as allocated')
             )
             ->groupBy(
                 'inbounds.id',
@@ -85,17 +85,15 @@ class InboundController extends Controller
                 foreach ($validated['office_allocation'] as $allocation) {
                     if ($allocation['quantity'] > 0) {
 
-                        $officeId = $allocation['office_id'];
-                        $quantity = $allocation['quantity'];
-                        $newInboundAllocation = InboundAllocation::create([
+                        $payload = [
                             'inbound_id' => $newInbound->id,
                             'stock_id' => $stock->id,
-                            'office_id' => $officeId,
-                            'allocation' => $quantity,
-                        ]);
-                        $newInboundAllocationId = $newInboundAllocation->id;
+                            'office_id' => $allocation['office_id'],
+                            'allocation' => $allocation['quantity'],
+                        ];
+
                         $stockService = new StockAllocationService();
-                        $stockService->createStockAllocation($newInboundAllocationId, $quantity, $quantity);
+                        $stockService->createStockAllocation($payload);
                     }
                 }
             }

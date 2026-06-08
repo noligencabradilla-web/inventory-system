@@ -9,22 +9,28 @@ use Illuminate\Support\Facades\Log;
 
 class StockAllocationService
 {
-    public function createStockAllocation($inboundAllocationId, $allocation, $outstanding)
+    public function createStockAllocation($payload)
     {
         return StockAllocation::create([
-            'inbound_allocation_id' => $inboundAllocationId,
-            'allocation' => $allocation,
-            'outstanding' => $outstanding,
+            "inbound_id" => $payload['inbound_id'],
+            "stock_id" => $payload['stock_id'],
+            "office_id" => $payload['office_id'],
+            'allocation' => $payload['allocation'],
+            'outstanding' => $payload['allocation'],
         ]);
     }
-    public function updateStockAllocation($inboundAllocationId, $outstanding)
+    public function updateStockAllocation($payload)
     {
-        return StockAllocation::updateOrCreate(
-            ['inbound_allocation_id' => $inboundAllocationId],
-            [
-                // 'allocation' => $allocation,
-                'outstanding' => $outstanding,
-            ]
-        );
+        $allocationData = StockAllocation::whereStockId($payload['stock_id'])
+            ->whereOfficeId($payload['office_id'])
+            ->whereNotNull('outstanding')
+            ->first();
+        $allocationData->decrement('outstanding', $payload['outstanding']);
+        // return StockAllocation::updateOrCreate(
+        //     ['id' => $payload['id']],
+        //     [
+        //         'outstanding' => $payload['outstanding'],
+        //     ]
+        // );
     }
 }

@@ -301,9 +301,17 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
             <path d="M12 5v14M5 12h14"></path>
         </svg>
-        Add Outbound
+        Add Outbound Modal
         <span style="position:absolute; top:0; left:-100%; width:100%; height:100%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.2)); transition:left 0.3s ease;"></span>
     </button>
+
+    <a href="outbound/create" type="button" class="btn-add-outbound" style="display:flex; align-items:center; gap:8px; padding:12px 20px; border-radius:12px; border:2px solid transparent; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#ffffff; text-decoration:none; font-weight:700; transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow:0 4px 12px rgba(59,130,246,0.2); position:relative; overflow:hidden; transform:translateY(0);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+            <path d="M12 5v14M5 12h14"></path>
+        </svg>
+        Add Outbound Page
+        <span style="position:absolute; top:0; left:-100%; width:100%; height:100%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.2)); transition:left 0.3s ease;"></span>
+    </a>
 </div>
 @php
     $stocks = \App\Models\Stock::all();

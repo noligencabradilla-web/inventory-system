@@ -7,12 +7,23 @@ use Illuminate\Database\Eloquent\Model;
 class StockAllocation extends Model
 {
     protected $fillable = [
-        "inbound_allocation_id",
+        "inbound_id",
+        "stock_id",
+        "office_id",
         "allocation",
         "outstanding"
     ];
 
-    public function inbound_allocation(){
-        return $this->belongsTo(InboundAllocation::class);
+    public function inbound()
+    {
+        return $this->belongsTo(Inbound::class);
+    }
+    public function stock()
+    {
+        return $this->belongsTo(Stock::class);
+    }
+    public function office()
+    {
+        return $this->belongsTo(SPOffices::class);
     }
 }

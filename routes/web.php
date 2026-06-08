@@ -111,6 +111,7 @@ Route::prefix('admin')
         Route::resource('inbound', InboundController::class);
         Route::get('/outbound/report/pdf', [OutboundController::class, 'generateReportPdf'])->name('admin.outbound.report.pdf');
         Route::resource('outbound', OutboundController::class);
+        Route::post('/outbound/make', [OutboundController::class,'storeAjaxOutbound']);
         Route::get('/outbound/search-recipients', [OutboundController::class, 'searchRecipients'])
             ->name('outbound.search-recipients');
 
@@ -212,7 +213,7 @@ Route::prefix('client')
 
         // ✅ View requests
         Route::get('/requests', [ClientRequestController::class, 'index'])->name('client.requests');
-        
+
         // ✅ Cancel pending request
         Route::post('/requests/{id}/cancel', [ClientRequestController::class, 'cancel'])->name('client.requests.cancel');
 
