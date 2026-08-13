@@ -13,9 +13,11 @@ use App\Models\Category;
 use App\Models\Stock;
 use App\Models\User;
 use App\Models\ClientMember;
-use App\Models\ClientMemberDistribution;
-use Illuminate\Http\Request;
+
+use illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+
+use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 
@@ -36,7 +38,7 @@ class AdminDashboardController extends Controller
                 ->sum('stock');
 
             // Total approved items from outbound records for this category
-            $totalRequested = \DB::table('outbounds')
+            $totalRequested = DB::table('outbounds')
                 ->join('stocks', 'outbounds.stock_id', '=', 'stocks.id')
                 ->where('stocks.category_id', $category->id)
                 ->where('outbounds.approval', 'approved')
@@ -50,7 +52,7 @@ class AdminDashboardController extends Controller
         }
 
         // --- Office analytics: count requests per office ---
-        $officeCounts = \App\Models\StockRequest::select('office', \DB::raw('COUNT(*) as total'))
+        $officeCounts = StockRequest::select('office', DB::raw('COUNT(*) as total'))
             ->groupBy('office')
             ->orderByDesc('total')
             ->get();
@@ -61,7 +63,7 @@ class AdminDashboardController extends Controller
         })->values();
 
         // --- Item analytics: most requested items ---
-        $itemCounts = \DB::table('stock_request_items')
+        $itemCounts = DB::table('stock_request_items')
             ->join('stocks', 'stock_request_items.stock_id', '=', 'stocks.id')
             ->join('categories', 'stocks.category_id', '=', 'categories.id')
             ->select(
@@ -69,7 +71,7 @@ class AdminDashboardController extends Controller
                 'stocks.description',
                 'categories.name as category_name',
                 'stocks.unit',
-                \DB::raw('SUM(stock_request_items.approved_qty) as total_requested')
+                DB::raw('SUM(stock_request_items.approved_qty) as total_requested')
             )
             ->where('stock_request_items.approved_qty', '>', 0)
             ->groupBy('stocks.id', 'stocks.description', 'categories.name', 'stocks.unit')
@@ -87,7 +89,25 @@ class AdminDashboardController extends Controller
             ];
         })->values();
 
-        return view('admin.dashboard', compact('pendingRequests', 'pendingPasswordResets', 'categoryAnalytics', 'officeAnalytics', 'itemAnalytics'));
+        $start = Carbon::now()->startOfMonth();
+        $end = Carbon::now()->endOfMonth();
+
+        $lowStockAnalytics = $this->lowStockItems();
+        $outStockAnalytics = $this->outOfStockItems();
+        $monthlyConsumptionAnalytics = $this->monthlyConsumptionTrend($start, $end);
+        return view(
+            'admin.dashboard', 
+            compact(
+                'pendingRequests',
+                'pendingPasswordResets',
+                'categoryAnalytics',
+                'officeAnalytics',
+                'itemAnalytics',
+                'lowStockAnalytics',
+                'outStockAnalytics',
+                'monthlyConsumptionAnalytics',
+                )
+        );
     }
 
     /**
@@ -131,14 +151,14 @@ class AdminDashboardController extends Controller
         }
 
         if ($type === 'all' || $type === 'urgent') {
-            $urgentOutbounds = \App\Models\Outbound::with(['stock', 'urgentRecipient'])
+            $urgentOutbounds = Outbound::with(['stock', 'urgentRecipient'])
                 ->where('is_urgent_outbound', true)
                 ->latest()
                 ->get();
         }
 
         if ($type === 'all' || $type === 'direct') {
-            $directRequests = \App\Models\Outbound::with(['stock', 'member', 'client'])
+            $directRequests = Outbound::with(['stock', 'member', 'client'])
                 ->where('is_direct_request', true)
                 ->latest()
                 ->get();
@@ -313,101 +333,224 @@ class AdminDashboardController extends Controller
         ]);
     }
 
+    
+
     /**
-     * Return analytics data filtered by date range. Used by ajax requests from the dashboard modal.
+     * Return analytics data filtered by date range.
+     * Used by AJAX requests from the admin dashboard modal.
      */
     public function chartData(Request $request)
     {
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
-        
-        // Only apply date filter if both start and end dates are provided
-        if ($startDate && $endDate) {
+
+        if ($startDate || $endDate) {
             $start = Carbon::parse($startDate)->startOfDay();
             $end = Carbon::parse($endDate)->endOfDay();
-        } else {
-            // If no date range provided, return empty data to show no data state
-            return response()->json([
-                'categories' => [],
-                'offices' => [],
-                'items' => [],
-            ]);
-        }
-        
-        // Category analytics: total stock availability per category
-        $categories = Category::all();
-        $categoryAnalytics = [];
-
-        foreach ($categories as $category) {
-            // Total stock availability from inbound records within date range for this category
-            $totalAvailability = \DB::table('inbounds')
-                ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
-                ->where('stocks.category_id', $category->id)
-                ->whereBetween('inbounds.created_at', [$start, $end])
-                ->sum('inbounds.total') ?? 0;
-
-            // Total approved items from outbound records within date range for this category
-            $totalRequested = \DB::table('outbounds')
-                ->join('stocks', 'outbounds.stock_id', '=', 'stocks.id')
-                ->where('stocks.category_id', $category->id)
-                ->where('outbounds.approval', 'approved')
-                ->whereBetween('outbounds.created_at', [$start, $end])
-                ->sum('outbounds.total') ?? 0;
-
-            $categoryAnalytics[] = [
-                'name' => $category->name,
-                'availability' => $totalAvailability ?? 0,
-                'requested' => $totalRequested ?? 0,
-            ];
+        }else{
+            $start = Carbon::now()->startOfMonth();
+            $end = Carbon::now()->endOfMonth();
         }
 
-        $officeCounts = StockRequest::whereBetween('created_at', [$start, $end])
-            ->select('office', \DB::raw('COUNT(*) as total'))
+        return response()->json([
+            'categories' => $this->categoryAnalytics($start, $end),
+            'offices' => $this->officeRequestAnalytics($start, $end),
+            'items' => $this->mostRequestedItems($start, $end),
+
+            // Additional analytics
+            'lowStock' => $this->lowStockItems(),
+            'outStock' => $this->outOfStockItems(),
+            'requestStatus' => $this->requestStatusOverview($start, $end),
+            'monthlyConsumption' => $this->monthlyConsumptionTrend($start, $end),
+        ]);
+    }
+
+    private function emptyPayload(): array
+    {
+        return [
+            'categories' => [],
+            'offices' => [],
+            'items' => [],
+            'lowStock' => [],
+            'outStock' => [],
+            'requestStatus' => [],
+            'monthlyConsumption' => [],
+            'stockMovement' => [],
+            'fastMoving' => [],
+            'officeQuantity' => [],
+            'pendingAging' => [],
+        ];
+    }
+
+    private function categoryAnalytics(Carbon $start, Carbon $end): array
+    {
+        return Category::query()
+            ->orderBy('name')
+            ->get()
+            ->map(function ($category) use ($start, $end) {
+                $totalAvailability = Inbound::query()
+                    ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
+                    ->where('stocks.category_id', $category->id)
+                    ->whereBetween('inbounds.created_at', [$start, $end])
+                    ->sum('inbounds.total');
+
+                $totalRequested = Outbound::query()
+                    ->join('stocks', 'outbounds.stock_id', '=', 'stocks.id')
+                    ->where('stocks.category_id', $category->id)
+                    ->where('outbounds.approval', 'approved')
+                    ->whereBetween('outbounds.created_at', [$start, $end])
+                    ->sum('outbounds.total');
+
+                return [
+                    'name' => $category->name,
+                    'availability' => (int) $totalAvailability,
+                    'requested' => (int) $totalRequested,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function officeRequestAnalytics(Carbon $start, Carbon $end): array
+    {
+        return StockRequest::query()
+            ->whereBetween('created_at', [$start, $end])
+            ->select('office', DB::raw('COUNT(*) as total'))
             ->groupBy('office')
             ->orderByDesc('total')
-            ->get();
+            ->get()
+            ->map(fn ($row) => [
+                'office' => $row->office ?: 'Unknown',
+                'count' => (int) $row->total,
+            ])
+            ->values()
+            ->all();
+    }
 
-        $officeAnalytics = $officeCounts->map(function ($r) {
-            return ['office' => $r->office ?? 'Unknown', 'count' => (int) $r->total];
-        })->values();
-
-        // item analytics: most requested items in the date range
-        $itemCounts = \DB::table('stock_request_items')
+    /**
+     * Most requested = number of approved/requested quantity from request items.
+     * This follows your existing dashboard logic.
+     */
+    private function mostRequestedItems(Carbon $start, Carbon $end): array
+    {
+        return DB::table('stock_request_items')
             ->join('stock_requests', 'stock_request_items.stock_request_id', '=', 'stock_requests.id')
             ->join('stocks', 'stock_request_items.stock_id', '=', 'stocks.id')
             ->join('categories', 'stocks.category_id', '=', 'categories.id')
+            ->whereBetween('stock_requests.created_at', [$start, $end])
+            ->where('stock_request_items.approved_qty', '>', 0)
             ->select(
+                'stocks.id',
                 'stocks.id_no',
                 'stocks.description',
                 'categories.name as category_name',
                 'stocks.unit',
-                \DB::raw('SUM(stock_request_items.approved_qty) as total_requested')
+                DB::raw('SUM(stock_request_items.approved_qty) as total_requested')
             )
-            ->whereBetween('stock_requests.created_at', [$start, $end])
-            ->where('stock_request_items.approved_qty', '>', 0)
-            ->groupBy('stocks.id', 'stocks.description', 'categories.name', 'stocks.unit')
+            ->groupBy(
+                'stocks.id',
+                'stocks.id_no',
+                'stocks.description',
+                'categories.name',
+                'stocks.unit'
+            )
             ->orderByDesc('total_requested')
             ->limit(10)
-            ->get();
-
-        $itemAnalytics = $itemCounts->map(function($item) {
-            return [
+            ->get()
+            ->map(fn ($item) => [
                 'id_no' => $item->id_no,
                 'description' => $item->description,
                 'category' => $item->category_name,
                 'unit' => $item->unit,
-                'total_requested' => (int) $item->total_requested
-            ];
-        })->values();
-
-        return response()->json([
-            'categories' => $categoryAnalytics,
-            'offices' => $officeAnalytics,
-            'items' => $itemAnalytics,
-        ]);
+                'total_requested' => (int) $item->total_requested,
+            ])
+            ->values()
+            ->all();
     }
 
-    
+    /**
+     * Uses your existing notification threshold: stock > 0 and stock <= 49.
+     */
+    private function lowStockItems(): array
+    {
+        $lowThreshold = 49;
+
+         return Stock::query()
+            ->leftJoin('categories', 'stocks.category_id', '=', 'categories.id')
+            ->where('stocks.stock', '>', 0)
+            ->where('stocks.stock', '<=', $lowThreshold)
+            ->select(
+                DB::raw("COALESCE(categories.name, 'Uncategorized') as category"),
+                DB::raw('COUNT(stocks.id) as total')
+            )
+            ->groupBy('categories.name')
+            ->orderByDesc('total')
+            ->get()
+            ->map(function ($row) use ($lowThreshold) {
+                return [
+                    'category' => $row->category,
+                    'total' => (int) $row->total,
+                    'threshold' => $lowThreshold,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function outOfStockItems(): array
+    {
+        return Stock::query()
+        ->with('category')
+        ->where('stock', '<=', 0)
+        ->orderBy('description')
+        ->get()
+        ->groupBy(function ($stock) {
+            return optional($stock->category)->name ?? 'Uncategorized';
+        })
+        ->map(function ($stocks, $categoryName) {
+            return [
+                'category' => $categoryName,
+                'total' => $stocks->count(),
+                'items' => $stocks->map(function ($stock) {
+                    return [
+                        'id_no' => $stock->id_no,
+                        'description' => $stock->description,
+                        'unit' => $stock->unit,
+                        'stock' => (int) $stock->stock,
+                    ];
+                })->values(),
+            ];
+        })
+        ->sortByDesc('total')
+        ->values()
+        ->all();
+    }
+
+    /**
+     * Consumption uses deducted_at because your summary report already treats deducted_at
+     * as the actual stock-out date.
+     */
+    private function monthlyConsumptionTrend(Carbon $start, Carbon $end): array
+    {
+        return Outbound::query()
+            ->whereNotNull('deducted_at')
+            ->whereBetween('deducted_at', [$start, $end])
+            ->select(
+                DB::raw("DATE_FORMAT(deducted_at, '%Y-%m') as month_key"),
+                DB::raw("DATE_FORMAT(deducted_at, '%b %Y') as label"),
+                DB::raw('SUM(total) as total')
+            )
+            ->groupBy('month_key', 'label')
+            ->orderBy('month_key')
+            ->get()
+            ->map(fn ($row) => [
+                'month' => $row->label,
+                'total' => (int) $row->total,
+            ])
+            ->values()
+            ->all();
+    }
+
     public function notifications()
     {
         $user = auth()->user();
@@ -421,36 +564,36 @@ class AdminDashboardController extends Controller
 
     public function counts()
     {
-        $pendingRequests = \App\Models\StockRequest::where('status', 'pending')->count();
-        $pendingPasswordResets = \App\Models\PasswordResetRequest::where('status', 'pending')->count();
+        $pendingRequests = StockRequest::where('status', 'pending')->count();
+        $pendingPasswordResets = PasswordResetRequest::where('status', 'pending')->count();
         $lowThreshold = 49;
-        $lowStock = \App\Models\Stock::where('stock','>',0)->where('stock','<=',$lowThreshold)->count();
-        $outStock = \App\Models\Stock::where('stock','<=',0)->count();
+        $lowStock = Stock::where('stock','>',0)->where('stock','<=',$lowThreshold)->count();
+        $outStock = Stock::where('stock','<=',0)->count();
         
         // New: Urgent outbound notifications
-        $urgentOutbounds = \App\Models\Outbound::where('is_urgent_outbound', true)
+        $urgentOutbounds = Outbound::where('is_urgent_outbound', true)
             ->where('approval', 'pending')
             ->count();
         
         // New: Expiring items (items with expiry date within 7 days)
         $expiringItems = 0;
-        if (\Illuminate\Support\Facades\Schema::hasColumn('stocks', 'expiry_date')) {
-            $sevenDaysFromNow = \Carbon\Carbon::now()->addDays(7);
-            $expiringItems = \App\Models\Stock::where('expiry_date', '<=', $sevenDaysFromNow)
-                ->where('expiry_date', '>', \Carbon\Carbon::now())
+        if (Schema::hasColumn('stocks', 'expiry_date')) {
+            $sevenDaysFromNow = Carbon::now()->addDays(7);
+            $expiringItems = Stock::where('expiry_date', '<=', $sevenDaysFromNow)
+                ->where('expiry_date', '>', Carbon::now())
                 ->where('stock', '>', 0)
                 ->count();
         }
         
         // New: Recent client activity (new registrations in last 24 hours)
-        $recentClients = \App\Models\User::where('role', 'client')
-            ->where('created_at', '>=', \Carbon\Carbon::now()->subHours(24))
+        $recentClients = User::where('role', 'client')
+            ->where('created_at', '>=', Carbon::now()->subHours(24))
             ->count();
         
         // New: System health alerts (failed jobs count)
         $failedJobs = 0;
         try {
-            $failedJobs = \DB::table('failed_jobs')->count();
+            $failedJobs = DB::table('failed_jobs')->count();
         } catch (\Exception $e) {
             // Table might not exist, ignore
         }
@@ -771,7 +914,7 @@ class AdminDashboardController extends Controller
     {
         $notifications = collect();
         
-        $urgentOutbounds = \App\Models\Outbound::where('is_urgent_outbound', true)
+        $urgentOutbounds = Outbound::where('is_urgent_outbound', true)
             ->where('approval', 'pending')
             ->with(['stock', 'urgentRecipient'])
             ->get();
@@ -873,7 +1016,7 @@ class AdminDashboardController extends Controller
         
         $failedJobs = 0;
         try {
-            $failedJobs = \DB::table('failed_jobs')->count();
+            $failedJobs = DB::table('failed_jobs')->count();
         } catch (\Exception $e) {
             // Table might not exist, ignore
         }
