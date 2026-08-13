@@ -360,7 +360,6 @@ class AdminDashboardController extends Controller
             // Additional analytics
             'lowStock' => $this->lowStockItems(),
             'outStock' => $this->outOfStockItems(),
-            'requestStatus' => $this->requestStatusOverview($start, $end),
             'monthlyConsumption' => $this->monthlyConsumptionTrend($start, $end),
         ]);
     }
