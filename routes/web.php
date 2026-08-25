@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetCont
 use App\Http\Controllers\Admin\NotificationPreferenceController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\AllocationController;
+use App\Http\Controllers\Admin\AdminSummaryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -92,8 +93,8 @@ Route::prefix('admin')
         Route::get('/', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
 
         // Admin summary / transactions
-        Route::get('/summary', [AdminDashboardController::class, 'summary'])->name('admin.summary');
-        Route::get('/summary/report/pdf', [AdminDashboardController::class, 'generateSummaryReportPdf'])->name('admin.summary.report.pdf');
+        Route::get('/summary', [AdminSummaryController::class, 'index'])->name('admin.summary');
+        Route::get('/summary/report/pdf', [AdminSummaryController::class, 'generatePdf'])->name('admin.summary.report.pdf');
 
         // AJAX endpoint for monthly chart analytics
         Route::get('/dashboard/chart-data', [AdminDashboardController::class, 'chartData'])->name('admin.dashboard.chartdata');

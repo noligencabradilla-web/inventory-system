@@ -14,89 +14,36 @@ use App\Models\Stock;
 use App\Models\User;
 use App\Models\ClientMember;
 
-use illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Dompdf\Dompdf;
 
 class AdminDashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $pendingRequests = StockRequest::where('status', 'pending')->count();
         $pendingPasswordResets = PasswordResetRequest::where('status', 'pending')->count();
 
-        // Gather category analytics
-        $categories = Category::all();
-        $categoryAnalytics = [];
+        $start = $request->filled('start_date')
+            ? Carbon::parse($request->input('start_date'))->startOfDay()
+            : Carbon::now()->startOfMonth();
 
-        foreach ($categories as $category) {
-            // Total stock availability for this category
-            $totalAvailability = Stock::where('category_id', $category->id)
-                ->sum('stock');
+        $end = $request->filled('end_date')
+            ? Carbon::parse($request->input('end_date'))->endOfDay()
+            : Carbon::now()->endOfDay();
 
-            // Total approved items from outbound records for this category
-            $totalRequested = DB::table('outbounds')
-                ->join('stocks', 'outbounds.stock_id', '=', 'stocks.id')
-                ->where('stocks.category_id', $category->id)
-                ->where('outbounds.approval', 'approved')
-                ->sum('outbounds.total') ?? 0;
-
-            $categoryAnalytics[] = [
-                'name' => $category->name,
-                'availability' => $totalAvailability ?? 0,
-                'requested' => $totalRequested ?? 0,
-            ];
-        }
-
-        // --- Office analytics: count requests per office ---
-        $officeCounts = StockRequest::select('office', DB::raw('COUNT(*) as total'))
-            ->groupBy('office')
-            ->orderByDesc('total')
-            ->get();
-
-        // prepare for charting (labels + values)
-        $officeAnalytics = $officeCounts->map(function($r){
-            return [ 'office' => $r->office ?? 'Unknown', 'count' => (int) $r->total ];
-        })->values();
-
-        // --- Item analytics: most requested items ---
-        $itemCounts = DB::table('stock_request_items')
-            ->join('stocks', 'stock_request_items.stock_id', '=', 'stocks.id')
-            ->join('categories', 'stocks.category_id', '=', 'categories.id')
-            ->select(
-                'stocks.id_no',
-                'stocks.description',
-                'categories.name as category_name',
-                'stocks.unit',
-                DB::raw('SUM(stock_request_items.approved_qty) as total_requested')
-            )
-            ->where('stock_request_items.approved_qty', '>', 0)
-            ->groupBy('stocks.id', 'stocks.description', 'categories.name', 'stocks.unit')
-            ->orderByDesc('total_requested')
-            ->limit(10)
-            ->get();
-
-        $itemAnalytics = $itemCounts->map(function($item) {
-            return [
-                'id_no' => $item->id_no,
-                'description' => $item->description,
-                'category' => $item->category_name,
-                'unit' => $item->unit,
-                'total_requested' => (int) $item->total_requested
-            ];
-        })->values();
-
-        $start = Carbon::now()->startOfMonth();
-        $end = Carbon::now()->endOfMonth();
-
+        $categoryAnalytics = $this->categoryAnalytics($start, $end);
+        $officeAnalytics = $this->officeRequestAnalytics($start, $end);
+        $itemAnalytics = $this->mostRequestedItems($start, $end);
         $lowStockAnalytics = $this->lowStockItems();
         $outStockAnalytics = $this->outOfStockItems();
         $monthlyConsumptionAnalytics = $this->monthlyConsumptionTrend($start, $end);
+
         return view(
-            'admin.dashboard', 
+            'admin.dashboard',
             compact(
                 'pendingRequests',
                 'pendingPasswordResets',
@@ -105,235 +52,10 @@ class AdminDashboardController extends Controller
                 'itemAnalytics',
                 'lowStockAnalytics',
                 'outStockAnalytics',
-                'monthlyConsumptionAnalytics',
-                )
+                'monthlyConsumptionAnalytics'
+            )
         );
     }
-
-    /**
-     * Summary (transaction list): show every request with details.
-     */
-    public function summary(Request $request)
-    {
-        $q = trim((string)$request->query('q', ''));
-        $office = trim((string)$request->query('office', ''));
-        $dateFrom = trim((string)$request->query('date_from', ''));
-        $dateTo = trim((string)$request->query('date_to', ''));
-        $type = trim((string)$request->query('type', 'all'));
-
-        // Initialize empty collections
-        $requests = collect();
-        $urgentOutbounds = collect();
-        $directRequests = collect();
-        $inbounds = collect();
-
-        // Filter based on transaction type
-        if ($type === 'all' || $type === 'request') {
-            $requestsQuery = StockRequest::with(['client', 'items.stock']);
-
-            if ($q !== '') {
-                $clean = ltrim($q, '#');
-                $requestsQuery->where(function ($qr) use ($clean) {
-                    if (is_numeric($clean)) {
-                        $qr->where('id', (int)$clean);
-                    }
-                    $qr->orWhereHas('client', function ($qc) use ($clean) {
-                        $qc->where('name', 'like', "%{$clean}%");
-                    });
-                });
-            }
-
-            if ($office !== '') {
-                $requestsQuery->where('office', $office);
-            }
-
-            $requests = $requestsQuery->latest()->get();
-        }
-
-        if ($type === 'all' || $type === 'urgent') {
-            $urgentOutbounds = Outbound::with(['stock', 'urgentRecipient'])
-                ->where('is_urgent_outbound', true)
-                ->latest()
-                ->get();
-        }
-
-        if ($type === 'all' || $type === 'direct') {
-            $directRequests = Outbound::with(['stock', 'member', 'client'])
-                ->where('is_direct_request', true)
-                ->latest()
-                ->get();
-        }
-
-        if ($type === 'all' || $type === 'inbound') {
-            $inboundsQuery = Inbound::with(['stock.category']);
-
-            if ($q !== '') {
-                $clean = ltrim($q, '#');
-                $inboundsQuery->where(function ($qr) use ($clean) {
-                    if (is_numeric($clean)) {
-                        $qr->where('id', (int)$clean);
-                    }
-                    $qr->orWhereHas('stock', function ($qs) use ($clean) {
-                        $qs->where('id_no', 'like', "%{$clean}%")
-                           ->orWhere('description', 'like', "%{$clean}%");
-                    });
-                });
-            }
-
-            $inbounds = $inboundsQuery->latest()->get();
-            
-            // Group inbound records by date to identify potential import batches
-            $groupedInbounds = [];
-            $manualInbounds = collect();
-            
-            foreach ($inbounds as $inbound) {
-                $dateKey = $inbound->created_at->format('Y-m-d');
-                $timeKey = $inbound->created_at->format('H:i');
-                
-                // Check if multiple records were created within the same minute (likely import)
-                $sameMinuteRecords = $inbounds->filter(function ($record) use ($inbound) {
-                    return $record->id !== $inbound->id && 
-                           $record->created_at->format('Y-m-d H:i') === $inbound->created_at->format('Y-m-d H:i');
-                });
-                
-                if ($sameMinuteRecords->count() > 0) {
-                    // This is likely an import batch
-                    $batchKey = $inbound->created_at->format('Y-m-d H:i');
-                    if (!isset($groupedInbounds[$batchKey])) {
-                        $groupedInbounds[$batchKey] = collect();
-                    }
-                    $groupedInbounds[$batchKey]->push($inbound);
-                } else {
-                    // This is likely a manual entry
-                    $manualInbounds->push($inbound);
-                }
-            }
-            
-            // Convert grouped collections to regular collections
-            $groupedInbounds = collect($groupedInbounds)->map(function ($group) {
-                return $group->sortBy('id');
-            });
-        }
-
-        $offices = StockRequest::select('office')
-            ->distinct()
-            ->orderBy('office')
-            ->pluck('office')
-            ->filter();
-
-        $reportData = $this->prepareSummaryReportData($q, $office, $dateFrom, $dateTo);
-
-        return view('admin.summary', array_merge([
-            'requests' => $requests,
-            'urgentOutbounds' => $urgentOutbounds,
-            'directRequests' => $directRequests,
-            'inbounds' => $inbounds,
-            'groupedInbounds' => $groupedInbounds ?? collect(),
-            'manualInbounds' => $manualInbounds ?? collect(),
-            'offices' => $offices,
-            'q' => $q,
-            'office' => $office,
-            'type' => $type,
-            'dateFrom' => $dateFrom,
-            'dateTo' => $dateTo,
-        ], $reportData));
-    }
-
-    private function prepareSummaryReportData(string $q, string $office, ?string $dateFrom, ?string $dateTo): array
-    {
-        $start = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : Carbon::now()->startOfMonth();
-        $end = $dateTo ? Carbon::parse($dateTo)->endOfDay() : Carbon::now()->endOfMonth();
-
-        $stockQuery = Stock::query();
-        if ($q !== '') {
-            $stockQuery->where(function ($query) use ($q) {
-                $query->where('id_no', 'like', "%{$q}%")
-                      ->orWhere('description', 'like', "%{$q}%");
-            });
-        }
-
-        $stocks = $stockQuery->orderBy('description')->get();
-
-        $inboundTotals = Inbound::whereBetween('created_at', [$start, $end])
-            ->select('stock_id', DB::raw('SUM(total) as total'))
-            ->groupBy('stock_id')
-            ->pluck('total', 'stock_id');
-
-        $outboundTotals = Outbound::whereNotNull('deducted_at')
-            ->whereBetween('deducted_at', [$start, $end])
-            ->when($office !== '', fn($query) => $query->where('office', $office))
-            ->select('stock_id', DB::raw('SUM(total) as total'))
-            ->groupBy('stock_id')
-            ->pluck('total', 'stock_id');
-
-        $futureInboundTotals = Inbound::where('created_at', '>', $end)
-            ->select('stock_id', DB::raw('SUM(total) as total'))
-            ->groupBy('stock_id')
-            ->pluck('total', 'stock_id');
-
-        $futureOutboundTotals = Outbound::whereNotNull('deducted_at')
-            ->where('deducted_at', '>', $end)
-            ->when($office !== '', fn($query) => $query->where('office', $office))
-            ->select('stock_id', DB::raw('SUM(total) as total'))
-            ->groupBy('stock_id')
-            ->pluck('total', 'stock_id');
-
-        $stockSummaries = $stocks->map(function ($stock) use ($inboundTotals, $outboundTotals, $futureInboundTotals, $futureOutboundTotals) {
-            $currentInbound = (int) ($inboundTotals[$stock->id] ?? 0);
-            $currentOutbound = (int) ($outboundTotals[$stock->id] ?? 0);
-            $futureInbound = (int) ($futureInboundTotals[$stock->id] ?? 0);
-            $futureOutbound = (int) ($futureOutboundTotals[$stock->id] ?? 0);
-
-            $currentStock = (int) $stock->stock;
-            $endingBalance = $currentStock - $futureInbound + $futureOutbound;
-            $startingBalance = $endingBalance - $currentInbound + $currentOutbound;
-            $sum = $startingBalance + $currentInbound;
-
-            return [
-                'item' => $stock->description,
-                'id_no' => $stock->id_no,
-                'starting_balance' => $startingBalance,
-                'inbound' => $currentInbound,
-                'sum' => $sum,
-                'outbound' => $currentOutbound,
-                'ending_balance' => $endingBalance,
-                'unit' => $stock->unit,
-            ];
-        });
-
-        return compact('stocks', 'stockSummaries', 'dateFrom', 'dateTo', 'start', 'end');
-    }
-
-    public function generateSummaryReportPdf(Request $request)
-    {
-        $q = trim((string)$request->query('q', ''));
-        $office = trim((string)$request->query('office', ''));
-        $dateFrom = trim((string)$request->query('date_from', ''));
-        $dateTo = trim((string)$request->query('date_to', ''));
-
-        $reportData = $this->prepareSummaryReportData($q, $office, $dateFrom, $dateTo);
-        $reportData['office'] = $office;
-
-        $pdf = new Dompdf();
-        $pdf->set_option('isRemoteEnabled', true);
-        $pdf->set_option('isHtml5ParserEnabled', true);
-        $pdf->set_option('isFontSubsettingEnabled', true);
-        $pdf->set_option('enablePhp', true);
-        $pdf->set_option('enableJavascript', true);
-        $pdf->setPaper('a4', 'portrait');
-
-        $html = view('admin.summary-report-pdf', $reportData)->render();
-        $pdf->set_option('chroot', base_path());
-        $pdf->loadHtml($html);
-        $pdf->render();
-
-        return response($pdf->output(), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="admin-summary-report.pdf"',
-        ]);
-    }
-
-    
 
     /**
      * Return analytics data filtered by date range.
@@ -341,23 +63,18 @@ class AdminDashboardController extends Controller
      */
     public function chartData(Request $request)
     {
-        $startDate = $request->query('start_date');
-        $endDate = $request->query('end_date');
+        $start = $request->filled('start_date')
+            ? Carbon::parse($request->input('start_date'))->startOfDay()
+            : Carbon::now()->startOfMonth();
 
-        if ($startDate || $endDate) {
-            $start = Carbon::parse($startDate)->startOfDay();
-            $end = Carbon::parse($endDate)->endOfDay();
-        }else{
-            $start = Carbon::now()->startOfMonth();
-            $end = Carbon::now()->endOfMonth();
-        }
+        $end = $request->filled('end_date')
+            ? Carbon::parse($request->input('end_date'))->endOfDay()
+            : Carbon::now()->endOfDay();
 
         return response()->json([
             'categories' => $this->categoryAnalytics($start, $end),
             'offices' => $this->officeRequestAnalytics($start, $end),
             'items' => $this->mostRequestedItems($start, $end),
-
-            // Additional analytics
             'lowStock' => $this->lowStockItems(),
             'outStock' => $this->outOfStockItems(),
             'monthlyConsumption' => $this->monthlyConsumptionTrend($start, $end),

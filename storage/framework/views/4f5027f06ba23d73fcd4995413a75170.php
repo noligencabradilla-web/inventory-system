@@ -29,7 +29,7 @@
             'title' => 'Category Analytics',
             'subtitle' => 'Stock availability vs. approved requests by category',
             'icon' => '📊',
-            'summary' => 'categoryTop',
+            'summary' => null,
         ],
         [
             'type' => 'office',
@@ -171,14 +171,14 @@
         }
 
         .charts-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            align-items: stretch;
+            grid-template-columns: repeat(3, 1fr);
+            align-items: start;
             gap: 20px;
             margin-top: 32px;
         }
 
         @media (max-width: 1200px) {
-            .charts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .charts-grid { grid-template-columns: repeat(2, 1fr); }
         }
 
         @media (max-width: 900px) {
@@ -188,15 +188,11 @@
         .chart-card {
             position: relative;
             overflow: hidden;
-            height: 460px;
-            min-height: 460px;
             padding: 20px;
             border-radius: 16px;
             background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, .01));
             cursor: pointer;
             transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-            display: flex;
-            flex-direction: column;
         }
 
         .chart-card:hover {
@@ -216,13 +212,11 @@
         }
 
         .chart-header {
-            min-height: 58px;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
             gap: 12px;
-            margin-bottom: 12px;
-            flex: 0 0 auto;
+            margin-bottom: 16px;
         }
 
         .chart-title {
@@ -230,14 +224,12 @@
             color: #000;
             font-size: 18px;
             font-weight: 800;
-            line-height: 1.2;
         }
 
         .chart-sub {
-            margin: 4px 0 0;
+            margin: 0;
             color: #9ca3af;
             font-size: 13px;
-            line-height: 1.2;
         }
 
         .chart-icon {
@@ -248,39 +240,17 @@
         .chart-body {
             position: relative;
             width: 100%;
-            height: 288px;
-            min-height: 288px;
-            flex: 0 0 288px;
-        }
-
-        .chart-body canvas {
-            display: block;
-            width: 100% !important;
-            height: 100% !important;
+            height: 320px;
         }
 
         .chart-summary {
-            height: 50px;
-            min-height: 50px;
             margin-top: 12px;
             color: #9ca3af;
             font-size: 13px;
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            overflow: hidden;
-            flex: 0 0 50px;
         }
 
-        .summary-main {
-            color: #000;
-            display: block;
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+        .summary-main { color: #000; }
         .summary-sub { color: #9ca3af; font-size: 11px; }
 
         .chart-loading-overlay {
@@ -517,7 +487,6 @@
                 closeModal: document.getElementById('closeModal'),
                 applyFilter: document.getElementById('applyModalFilter'),
                 resetFilter: document.getElementById('resetModalFilter'),
-                categoryTop: document.getElementById('categoryTop'),
                 officeTop: document.getElementById('officeTop'),
                 itemsTop: document.getElementById('itemsTop'),
                 lowStockTop: document.getElementById('lowStockTop'),
@@ -545,12 +514,9 @@
             bindEvents();
 
             function initCharts() {
-                document.querySelectorAll('[data-chart-type]').forEach((card) => {
-                    const type = card.dataset.chartType;
-                    const canvas = card.querySelector('canvas');
-
-                    if (!canvas || !chartBuilders[type]) return;
-                    charts[type] = createChart(canvas.id, type, analytics);
+                Object.keys(chartBuilders).forEach((type) => {
+                    const canvasId = `${type}Chart`;
+                    charts[type] = createChart(canvasId, type, analytics);
                 });
             }
 
@@ -1016,20 +982,12 @@
             }
 
             function renderSummaries(data) {
-                const topCategory = [...data.categories]
-                    .sort((a, b) => numberValue(b.availability) - numberValue(a.availability))[0];
                 const topOffice = data.offices[0];
                 const topItem = data.items[0];
                 const topLowStock = data.lowStock[0];
                 const totalOutStock = data.outStock.reduce((sum, row) => sum + numberValue(row.total), 0);
                 const topFastMoving = data.fastMoving[0];
                 const topOfficeQuantity = data.officeQuantity[0];
-
-                renderSummary(
-                    elements.categoryTop,
-                    topCategory ? `Top: ${topCategory.name}` : null,
-                    topCategory ? `${numberValue(topCategory.availability).toLocaleString()} available stock(s)` : null
-                );
 
                 renderSummary(
                     elements.officeTop,
