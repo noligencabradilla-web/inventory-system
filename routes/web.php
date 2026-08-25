@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\RequestController as AdminRequestController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
 use App\Http\Controllers\Admin\NotificationPreferenceController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\AllocationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +42,7 @@ use App\Http\Controllers\Client\ClientNotificationController;
 use App\Http\Controllers\Client\ClientNotificationPreferenceController;
 use App\Http\Controllers\Client\ClientSubaccountController;
 use App\Http\Controllers\Client\PasswordResetController as ClientPasswordResetController;
+use App\Http\Controllers\Client\ClientAllocationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -174,6 +176,9 @@ Route::prefix('admin')
         Route::put('/requests/{stockRequest}/decide', [AdminRequestController::class, 'decide'])
             ->name('admin.requests.decide');
 
+        Route::get('/allocations', [AllocationController::class, 'index'])
+            ->name('admin.allocations.index');
+
         /*
         |--------------------------------------------------------------------------
         | USER MANAGEMENT
@@ -206,6 +211,9 @@ Route::prefix('client')
         Route::post('/inventory/deduct', [ClientStockController::class, 'deduct'])->name('client.inventory.deduct');
 
         Route::get('/stocks', [ClientStockController::class, 'index'])->name('client.stocks');
+
+        //allocated items page
+        Route::get('/allocations', [ClientAllocationController::class, 'index'])->name('client.allocations.index');
 
         // ✅ Multi item request submit
         Route::post('/requests', [ClientRequestController::class, 'store'])->name('client.requests.store');

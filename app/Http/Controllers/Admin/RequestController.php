@@ -9,6 +9,7 @@ use App\Models\Stock;
 use App\Models\Outbound;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\StockAllocation;
 
 
 class RequestController extends Controller
@@ -190,99 +191,138 @@ class RequestController extends Controller
      * Release: verify code then create outbound rows.
      * Stock deduction happens when outbound is marked RECEIVED (your latest requirement).
      */
-  
 
-public function release(\Illuminate\Http\Request $httpRequest, StockRequest $stockRequest)
+    public function release(Request $httpRequest, StockRequest $stockRequest)
     {
         $httpRequest->validate([
             'verification_code' => 'required|string',
             'received_by' => 'required|string|max:255'
         ]);
 
-        // ✅ must be ready_to_receive
         if ($stockRequest->status !== 'ready_to_receive') {
             return back()->with('error', 'Only READY TO RECEIVE requests can be released.');
         }
 
-        // ✅ verify code
-        if (trim($httpRequest->verification_code) !== trim((string)$stockRequest->verification_code)) {
+        if (trim($httpRequest->verification_code) !== trim((string) $stockRequest->verification_code)) {
             return back()->with('error', 'Invalid verification code.');
-        }
-
-        // ✅ stop double release
-        if ($stockRequest->status === 'released') {
-            return back()->with('error', 'This request was already released.');
         }
 
         try {
             DB::transaction(function () use ($stockRequest, $httpRequest) {
-
-                // lock the request row
                 $req = StockRequest::where('id', $stockRequest->id)
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                $req->load(['items.stock']);
-                
-                // Update received_by before saving
+                if ($req->status === 'released') {
+                    throw new \Exception('This request was already released.');
+                }
+
+                $req->load(['items.stock', 'client']);
+
+                $officeId = $this->resolveOfficeIdForRequest($req);
+
+                if (! $officeId) {
+                    throw new \Exception('Cannot deduct allocation because this request has no office ID.');
+                }
+
                 $req->received_by = $httpRequest->received_by;
 
                 foreach ($req->items as $item) {
-                    $approved = (int)($item->approved_qty ?? 0);
+                    $approved = (int) ($item->approved_qty ?? 0);
 
-                    // skip rejected items
-                    if ($approved <= 0) continue;
+                    if ($approved <= 0) {
+                        continue;
+                    }
 
                     $stock = Stock::where('id', $item->stock_id)
                         ->lockForUpdate()
                         ->firstOrFail();
 
-                    // ✅ ensure enough stock
-                    if ($approved > (int)$stock->stock) {
+                    if ($approved > (int) $stock->stock) {
                         throw new \Exception(
                             "Not enough stock for {$stock->description}. Available: {$stock->stock}, Approved: {$approved}"
                         );
                     }
 
-                    // ✅ create outbound record (ALL required fields included)
+                    // Deduct from office allocation first
+                    $this->deductStockAllocation(
+                        stockId: $stock->id,
+                        officeId: $officeId,
+                        quantity: $approved
+                    );
+
                     Outbound::create([
                         'stock_id'     => $stock->id,
                         'client_id'    => $req->client_id,
                         'office'       => $req->office,
-                        'description'  => $stock->description, // nullable but helpful
+                        'office_id'    => $officeId,
+                        'description'  => $stock->description,
                         'total'        => $approved,
-
-                        // you have these columns:
                         'approval'     => 'approved',
                         'status'       => 'on process',
-
-                        // ✅ marks that deduction happened
                         'deducted_at'  => now(),
                         'received_by'  => $httpRequest->received_by,
                     ]);
 
-                    // ✅ deduct immediately from main stock
+                    // Deduct from main stock
                     $stock->decrement('stock', $approved);
-                    
-                    // ✅ ADD TO CLIENT INVENTORY: Update the StockRequestItem to reflect received quantity
-                    // The item already has approved_qty set from the decision step
-                    // We just need to ensure the status is updated to show it's been received
+
                     $item->status = 'released';
                     $item->save();
                 }
 
-                // ✅ move request out of workflow
                 $req->status = 'released';
                 $req->received_by = $httpRequest->received_by;
                 $req->save();
             });
-
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()->route('outbound.index')
-            ->with('success', 'Released successfully. Stocks were deducted and moved to Outbound.');
+            ->with('success', 'Released successfully. Stocks and allocations were deducted.');
+    }
+
+    private function resolveOfficeIdForRequest(StockRequest $request): ?int
+    {
+        if (! empty($request->office_id)) {
+            return (int) $request->office_id;
+        }
+
+        if (! empty($request->client?->s_p_office_id)) {
+            return (int) $request->client->s_p_office_id;
+        }
+
+        return null;
+    }
+
+    private function deductStockAllocation(int $stockId, int $officeId, int $quantity): void
+    {
+        $remaining = $quantity;
+
+        $allocations = StockAllocation::query()
+            ->where('stock_id', $stockId)
+            ->where('office_id', $officeId)
+            ->where('outstanding', '>', 0)
+            ->orderBy('created_at')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($allocations as $allocation) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $deduct = min((int) $allocation->outstanding, $remaining);
+
+            $allocation->decrement('outstanding', $deduct);
+
+            $remaining -= $deduct;
+        }
+
+        if ($remaining > 0) {
+            throw new \Exception('Requested quantity exceeds the remaining allocation for this office.');
+        }
     }
 
 /**

@@ -1,16 +1,14 @@
-@extends('layouts.app')
-
-@php
+<?php
   $brand = 'Inventory System';
   $pageTitle = 'Stocks';
   $pageSubtitle = 'Manage all available stocks.';
-@endphp
+?>
 
-@section('sidebar')
-    @include('partials.admin-sidebar')
-@endsection
+<?php $__env->startSection('sidebar'); ?>
+    <?php echo $__env->make('partials.admin-sidebar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php $__env->stopSection(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <style>
     .toolbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
     .btn-link{
@@ -172,17 +170,17 @@
 <div class="toolbar">
     <div style="display:flex; gap:12px; align-items:center;">
         <h2 style="margin:0;">Stocks</h2>
-        @php
+        <?php
             $filterCategories = $allCategories->pluck('name')->unique()->values();
-        @endphp
+        ?>
 
         <input id="stocksSearch" type="search" placeholder="Search ID, description, category..." style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;min-width:260px;">
 
         <select id="filterCategory" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;">
             <option value="">All categories</option>
-            @foreach($filterCategories as $c)
-                <option value="{{ strtolower($c) }}">{{ $c }}</option>
-            @endforeach
+            <?php $__currentLoopData = $filterCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $c): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <option value="<?php echo e(strtolower($c)); ?>"><?php echo e($c); ?></option>
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         </select>
 
         <select id="filterAvailability" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;">
@@ -209,32 +207,32 @@
             </tr>
         </thead>
         <tbody>
-            @forelse($stocks as $s)
-                @php
+            <?php $__empty_1 = true; $__currentLoopData = $stocks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $s): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                <?php
                     $cat = $s->category?->name ?? $s->category_name ?? '';
                     $desc = $s->description ?? $s->name ?? '';
                     $stockVal = $s->stock ?? 0;
-                @endphp
-                <tr style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);" data-stock-id="{{ $s->id }}" data-id="{{ strtolower($s->id_no ?? $s->id) }}" data-desc="{{ strtolower($desc) }}" data-cat="{{ strtolower($cat) }}" data-stock="{{ $stockVal }}">
+                ?>
+                <tr style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);" data-stock-id="<?php echo e($s->id); ?>" data-id="<?php echo e(strtolower($s->id_no ?? $s->id)); ?>" data-desc="<?php echo e(strtolower($desc)); ?>" data-cat="<?php echo e(strtolower($cat)); ?>" data-stock="<?php echo e($stockVal); ?>">
                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                        <div style="font-weight:700; color:#1e40af; font-size:14px;">{{ $s->id_no ?? $s->id }}</div>
+                        <div style="font-weight:700; color:#1e40af; font-size:14px;"><?php echo e($s->id_no ?? $s->id); ?></div>
                     </td>
                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                        <div style="color:#64748b; font-size:14px;">{{ $desc ?: 'â' }}</div>
+                        <div style="color:#64748b; font-size:14px;"><?php echo e($desc ?: 'â'); ?></div>
                     </td>
-                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#64748b; font-size:14px;">{{ $cat ?: 'Unknown' }}</td>
-                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $s->unit ?? 'â' }}</td>
+                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#64748b; font-size:14px;"><?php echo e($cat ?: 'Unknown'); ?></td>
+                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($s->unit ?? 'â'); ?></td>
                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                        @if($stockVal >= 50)
-                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;">{{ $stockVal }} available</span>
-                        @elseif($stockVal > 0 && $stockVal <= 49)
-                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fed7aa; background:#fff7ed; color:#ea580c;">{{ $stockVal }} available</span>
-                        @else
+                        <?php if($stockVal >= 50): ?>
+                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;"><?php echo e($stockVal); ?> available</span>
+                        <?php elseif($stockVal > 0 && $stockVal <= 49): ?>
+                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fed7aa; background:#fff7ed; color:#ea580c;"><?php echo e($stockVal); ?> available</span>
+                        <?php else: ?>
                             <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fecaca; background:#fef2f2; color:#dc2626;">Out of stock</span>
-                        @endif
+                        <?php endif; ?>
                     </td>
                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                        <button type="button" style="padding:8px 12px; border-radius:8px; border:1px solid #3b82f6; background:#3b82f6; color:#ffffff; font-weight:700; cursor:pointer; transition:all 0.3s ease;" onclick="openEditModal({{ $s->id }})">
+                        <button type="button" style="padding:8px 12px; border-radius:8px; border:1px solid #3b82f6; background:#3b82f6; color:#ffffff; font-weight:700; cursor:pointer; transition:all 0.3s ease;" onclick="openEditModal(<?php echo e($s->id); ?>)">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -242,11 +240,11 @@
                         </button>
                     </td>
                 </tr>
-            @empty
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                 <tr style="background:linear-gradient(135deg, #f8fafc, #f1f5f9);">
                     <td colspan="6" style="padding:20px 10px; text-align:center; color:#64748b; font-size:14px;">No stocks found.</td>
                 </tr>
-            @endforelse
+            <?php endif; ?>
         </tbody>
     </table>
 </div>
@@ -290,9 +288,9 @@
                 <label style="display:block; margin-bottom:6px; font-weight:600; color:#374151; font-size:14px;">Category</label>
                 <select id="editCategorySelect" style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; transition:all 0.3s ease; background:#ffffff; cursor:pointer;">
                     <option value="">Select a category</option>
-                    @foreach($allCategories as $catOpt)
-                        <option value="{{ $catOpt->id }}">{{ $catOpt->name }}</option>
-                    @endforeach
+                    <?php $__currentLoopData = $allCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $catOpt): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <option value="<?php echo e($catOpt->id); ?>"><?php echo e($catOpt->name); ?></option>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </select>
             </div>
 
@@ -356,7 +354,7 @@
 </style>
 
 <script>
-const CSRF_TOKEN = '{{ csrf_token() }}';
+const CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
 let _editStockId = null;
 
 function openEditModal(stockId){
@@ -493,50 +491,50 @@ filterAvailability && filterAvailability.addEventListener('change', filterStocks
     <div style="background:linear-gradient(135deg, #ffffff, #f8fafc); border-radius:16px; padding:24px; width:520px; max-width:95%; box-shadow:0 18px 40px rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.1);">
         <h3 style="margin:0 0 20px 0; font-size:18px; font-weight:800; color:#000000; text-align:center;">Add New Item</h3>
         
-        @if($errors->any())
+        <?php if($errors->any()): ?>
             <div style="color: var(--red); margin-bottom:16px; padding:12px; background: rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); border-radius:8px;">
                 <ul style="margin:0; padding-left:20px;">
-                    @foreach($errors->all() as $error) <li style="margin:4px 0;">{{ $error }}</li> @endforeach
+                    <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?> <li style="margin:4px 0;"><?php echo e($error); ?></li> <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </ul>
             </div>
-        @endif
+        <?php endif; ?>
 
-        <form action="{{ route('stocks.store') }}" method="POST" id="stockForm">
-            @csrf
+        <form action="<?php echo e(route('stocks.store')); ?>" method="POST" id="stockForm">
+            <?php echo csrf_field(); ?>
             
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; color: #000000; font-weight:700; font-size:14px;">Category:</label>
                 <select name="category_id" id="stock_category_id" required style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(59,130,246,.05); outline:none;">
                     <option value="">-- Choose a category --</option>
-                    @foreach($allCategories as $category)
-                        <option value="{{ $category->id }}" data-code="{{ $category->code ?? '' }}">{{ $category->name }}</option>
-                    @endforeach
+                    <?php $__currentLoopData = $allCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <option value="<?php echo e($category->id); ?>" data-code="<?php echo e($category->code ?? ''); ?>"><?php echo e($category->name); ?></option>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </select>
             </div>
 
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; color: #000000; font-weight:700; font-size:14px;">ID No:</label>
-                <input type="text" name="id_no" id="stock_id_no" value="{{ old('id_no') }}" required readonly style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#eff6ff; cursor:not-allowed; box-shadow:0 1px 3px rgba(59,130,246,.05);">
+                <input type="text" name="id_no" id="stock_id_no" value="<?php echo e(old('id_no')); ?>" required readonly style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#eff6ff; cursor:not-allowed; box-shadow:0 1px 3px rgba(59,130,246,.05);">
             </div>
 
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; color: #000000; font-weight:700; font-size:14px;">Description:</label>
-                <input type="text" name="description" id="stock_description" value="{{ old('description') }}" required style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(59,130,246,.05); outline:none;">
+                <input type="text" name="description" id="stock_description" value="<?php echo e(old('description')); ?>" required style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(59,130,246,.05); outline:none;">
             </div>
 
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; color: #000000; font-weight:700; font-size:14px;">Unit:</label>
-                <input type="text" name="unit" id="stock_unit" value="{{ old('unit') }}" required style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(59,130,246,.05); outline:none;">
+                <input type="text" name="unit" id="stock_unit" value="<?php echo e(old('unit')); ?>" required style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(59,130,246,.05); outline:none;">
             </div>
 
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; color: #000000; font-weight:700; font-size:14px;">Stock:</label>
-                <input type="number" name="stock" id="stock_stock" value="{{ old('stock', 0) }}" min="0" required style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(59,130,246,.05); outline:none;">
+                <input type="number" name="stock" id="stock_stock" value="<?php echo e(old('stock', 0)); ?>" min="0" required style="width:100%; padding:12px 14px; border:2px solid #dbeafe; border-radius:10px; font-size:14px; color:#000000; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(59,130,246,.05); outline:none;">
             </div>
 
             <div style="margin-bottom:20px;">
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <input type="checkbox" name="hidden" id="stock_hidden" value="1" {{ old('hidden') ? 'checked' : '' }} style="width:18px; height:18px; cursor:pointer; accent-color:#3b82f6;">
+                    <input type="checkbox" name="hidden" id="stock_hidden" value="1" <?php echo e(old('hidden') ? 'checked' : ''); ?> style="width:18px; height:18px; cursor:pointer; accent-color:#3b82f6;">
                     <label for="stock_hidden" style="margin:0; font-weight:500; cursor:pointer; color: #000000;">Hidden (Admin Only)</label>
                 </div>
             </div>
@@ -679,4 +677,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\wamp64\www\inventory-system\resources\views/admin/stocks/index.blade.php ENDPATH**/ ?>

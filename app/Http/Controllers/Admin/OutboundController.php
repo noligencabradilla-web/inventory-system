@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Outbound;
 use App\Models\Stock;
-use App\Models\StockRequest;
-use App\Models\StockRequestItem;
 use App\Models\UrgentOutboundRecipient;
 use App\Models\ClientMember;
+use App\Models\InboundAllocation;
+use App\Models\StockAllocation;
 use Dompdf\Dompdf;
 use Illuminate\Support\Facades\DB;
 
@@ -50,7 +50,9 @@ class OutboundController extends Controller
         }
 
         $outbounds = $query->get();
-        $clients = \App\Models\User::where('role', 'client')->get();
+        $clients = \App\Models\User::join('s_p_offices', 's_p_offices.id', '=', 's_p_office_id')->with('clientMembers')->whereRole('client')
+            ->select('users.id', 'name', 's_p_offices.id as office_id', 's_p_offices.office')
+            ->get();
         $members = ClientMember::with('client')->get();
         $offices = Outbound::whereNotNull('office')->where('office', '<>', '')->distinct()->orderBy('office')->pluck('office');
 
@@ -60,98 +62,168 @@ class OutboundController extends Controller
     public function create()
     {
         $stocks = Stock::all();
-        $clients = \App\Models\User::where('role', 'client')->get();
-        return view('admin.outbound.create', compact('stocks', 'clients'));
+        // $clients = \App\Models\User::where('role', 'client')->get();
+        $clients = \App\Models\User::join('s_p_offices', 's_p_offices.id', '=', 's_p_office_id')->with('clientMembers')->whereRole('client')
+            ->select('users.id', 'name', 's_p_offices.id as office_id', 's_p_offices.office')
+            ->get();
+        $members = ClientMember::with('client', 'client.office')->get();
+        return view('admin.outbound.create', compact('stocks', 'clients', 'members'));
+    }
+    protected function checkForInboundAllocation($stock_id, $office_id)
+    {
+        return StockAllocation::where('stock_id', $stock_id)
+            ->where('office_id', $office_id)
+            ->whereNotNull('outstanding')
+            ->where('outstanding', '>', 0)
+            ->orderBy('id')
+            ->get();
+    }
+    public function show()
+    {
+        return null;
     }
 
     public function searchRecipients(Request $request)
     {
-        $term = $request->get('term', '');
+        $term = trim($request->get('term', ''));
+
+        if (strlen($term) < 2) {
+            return response()->json([]);
+        }
+
         $results = [];
 
         if (strlen($term) >= 2) {
             // Search clients
             $clients = \App\Models\User::where('role', 'client')
-                ->where(function($query) use ($term) {
+                ->where(function ($query) use ($term) {
                     $query->where('name', 'like', "%{$term}%")
-                          ->orWhere('office', 'like', "%{$term}%");
+                        ->orWhere('office', 'like', "%{$term}%");
                 })
                 ->get();
 
-            foreach ($clients as $client) {
-                $results[] = [
-                    'id' => $client->id,
-                    'name' => $client->name,
-                    'office' => $client->office,
-                    'type' => 'client'
-                ];
-            }
+        foreach ($clients as $client) {
+            $results[] = [
+                'id' => $client->id,
+                'name' => $client->name,
+                'office_id' => $client->s_p_office_id,
+                'office' => $client->office?->office ?? 'No assigned office',
+                'type' => 'client',
+            ];
+        }
 
             // Search client members
             $members = ClientMember::with('client')
-                ->where(function($query) use ($term) {
+                ->where(function ($query) use ($term) {
                     $query->where('name', 'like', "%{$term}%")
-                          ->orWhere('email', 'like', "%{$term}%");
+                        ->orWhere('email', 'like', "%{$term}%");
                 })
                 ->get();
 
-            foreach ($members as $member) {
-                $office = $member->client->office ?? 'non office member';
-                $results[] = [
-                    'id' => $member->id,
-                    'client_id' => $member->client_id,
-                    'name' => $member->name,
-                    'email' => $member->email,
-                    'office' => $office,
-                    'client_name' => $member->client->name,
-                    'type' => 'member',
-                    'has_office' => !empty($member->client->office)
-                ];
-            }
+        foreach ($members as $member) {
+            $client = $member->client;
 
-            // Search urgent recipients
-            $urgentRecipients = UrgentOutboundRecipient::search($term)->get();
-
-            foreach ($urgentRecipients as $urgent) {
-                $results[] = [
-                    'id' => $urgent->id,
-                    'name' => $urgent->name,
-                    'office' => $urgent->office,
-                    'type' => 'urgent'
-                ];
-            }
+            $results[] = [
+                'id' => $member->id,
+                'client_id' => $member->client_id,
+                'name' => $member->name,
+                'email' => $member->email,
+                'office_id' => $client?->s_p_office_id,
+                'office' => $client?->office?->office ?? 'No assigned office',
+                'client_name' => $client?->name ?? 'Unknown client',
+                'type' => 'member',
+            ];
         }
 
         return response()->json($results);
     }
 
+    public function storeAjaxOutbound(Request $request)
+    {
+        $validate =  $request->validate([
+            'stock_id'  => 'required|exists:stocks,id',
+            'office_id'  => 'required|exists:s_p_offices,id',
+            'total'     => 'required|integer|min:1',
+            'reason'    => 'nullable|string|max:1000',
+        ]);
+        $allocations = $this->checkForInboundAllocation($validate['stock_id'], $validate['office_id']);
+
+        if ($allocations->isNotEmpty()) {
+            $remaining = $validate['total'];
+
+            foreach ($allocations as $allocation) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                if ($allocation->outstanding <= 0) {
+                    continue;
+                }
+
+                $deduct = min($allocation->outstanding, $remaining);
+                $allocation->outstanding = max(0, $allocation->outstanding - $deduct);
+                $allocation->save();
+
+                $remaining -= $deduct;
+            }
+        }
+
+        return redirect()->route('outbound.index')->with('success', 'Outbound created.');
+    }
+    public function storeOutbound($stock_id, $office_id, $total)
+    {
+        $isDone = false;
+        $allocations = $this->checkForInboundAllocation($stock_id, $office_id);
+
+        if ($allocations->isNotEmpty()) {
+            $remaining = $total;
+
+            foreach ($allocations as $allocation) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                if ($allocation->outstanding <= 0) {
+                    continue;
+                }
+
+                $deduct = min($allocation->outstanding, $remaining);
+                $allocation->outstanding = max(0, $allocation->outstanding - $deduct);
+                $allocation->save();
+
+                $remaining -= $deduct;
+            }
+            $isDone = true;
+        } else $isDone = true;
+
+        return $isDone;
+    }
     public function store(Request $request)
     {
         $isUrgentOutbound = $request->input('is_urgent_outbound', 'false') === 'true';
-        
         if ($isUrgentOutbound) {
-            $request->validate([
-                'stock_id'  => 'required|exists:stocks,id',
-                'urgent_recipient_name' => 'required|string|max:255',
-                'urgent_recipient_office' => 'nullable|string|max:255',
-                'total'     => 'required|integer|min:1',
-                'reason'    => 'nullable|string|max:1000',
-            ]);
-        } else {
-            $request->validate([
-                'stock_id'  => 'required|exists:stocks,id',
-                'client_id' => 'required|exists:users,id',
-                'office'    => 'required|string',
-                'total'     => 'required|integer|min:1',
-                'reason'    => 'nullable|string|max:1000',
+            $validated = $request->validate([
+                'stock_id' => ['required', 'exists:stocks,id'],
+                'urgent_recipient_name' => ['required', 'string', 'max:255'],
+                'urgent_recipient_office' => ['nullable', 'string', 'max:255'],
+                'total' => ['required', 'integer', 'min:1'],
+                'reason' => ['nullable', 'string', 'max:1000'],
             ]);
         }
+        $request->validate([
+            'stock_id'  => 'required|exists:stocks,id',
+            'client_id' => 'required|exists:users,id',
+            'office'    => 'required|string',
+            'office_id' => 'required|integer|exists:s_p_offices,id',
+            'total'     => 'required|integer|min:1',
+            'reason'    => 'nullable|string|max:1000',
+        ]);
 
         // Approval and status are set automatically when admin creates an outbound
-        $data = $request->only('stock_id','total','reason');
+        $data = $request->only('stock_id', 'total', 'reason');
         $data['approval'] = 'approved';
         $data['status'] = 'received';
-
+        // dd($data);
         if ($isUrgentOutbound) {
             // Handle urgent recipient
             $urgentRecipientName = $request->input('urgent_recipient_name');
@@ -170,36 +242,35 @@ class OutboundController extends Controller
                     'office' => $urgentRecipientOffice,
                     'reason' => 'Urgent outbound request',
                 ]);
-                
+
                 $data['urgent_recipient_id'] = $urgentRecipient->id;
                 $data['urgent_recipient_name'] = $urgentRecipientName;
                 $data['urgent_recipient_office'] = $urgentRecipientOffice;
             }
-            
+
             $data['is_urgent_outbound'] = true;
             $data['client_id'] = null;
             $data['office'] = $urgentRecipientOffice;
-        } else {
-            // Handle regular client or member
-            $data['client_id'] = $request->input('client_id');
-            $data['office'] = $request->input('office');
-            $data['is_urgent_outbound'] = false;
-            
-            // Check if this is a member selection or direct client request
-            $memberId = $request->input('member_id');
-            if ($memberId) {
-                $data['member_id'] = $memberId;
-                $data['is_direct_request'] = true;
-            } else {
-                // This is a direct request from main client/office (no member selected)
-                $data['is_direct_request'] = true;
-            }
         }
+        // Handle regular client or member
+        $data['client_id'] = $request->input('client_id');
+        $data['office'] = $request->input('office');
+        $data['office_id'] = $request->input('office_id');
+        $data['is_urgent_outbound'] = false;
 
+        // Check if this is a member selection or direct client request
+        $memberId = $request->input('member_id');
+        if ($memberId) {
+            $data['member_id'] = $memberId;
+            $data['is_direct_request'] = true;
+        } else {
+            // This is a direct request from main client/office (no member selected)
+            $data['is_direct_request'] = true;
+        }
         // If status is received on create, perform deduction and set deducted_at atomically
         if (($data['status'] ?? '') === 'received') {
             try {
-                DB::transaction(function() use ($data) {
+                DB::transaction(function () use ($data) {
                     // lock stock
                     $stock = Stock::where('id', $data['stock_id'])->lockForUpdate()->firstOrFail();
 
@@ -207,17 +278,25 @@ class OutboundController extends Controller
                         throw new \Exception("Not enough stock to deduct. Available: {$stock->stock}, Outbound: {$data['total']}");
                     }
 
-                    // create outbound with deducted_at
-                    $out = Outbound::create($data + ['deducted_at' => now()]);
 
-                    // decrement stock
-                    $stock->decrement('stock', $data['total']);
+                    $verifyAllocations = $this->storeOutbound($data['stock_id'], $data['office_id'], $data['total']);
+                    if ($verifyAllocations) {
+                        // create outbound with deducted_at
+                        $out = Outbound::create($data + ['deducted_at' => now()]);
+
+                        // decrement stock
+                        $stock->decrement('stock', $data['total']);
+                    }
                 });
             } catch (\Throwable $e) {
-                return back()->with('error', $e->getMessage())->withInput();
+                return back()
+                    ->withInput()
+                    ->with('error', $e->getMessage());
             }
 
-            return redirect()->route('outbound.index')->with('success', 'Outbound created and stock deducted.');
+            return redirect()
+                ->route('outbound.index')
+                ->with('success', 'Non-member outbound created and stock deducted.');
         }
 
         // default: create without deduction
@@ -226,7 +305,7 @@ class OutboundController extends Controller
         // If approval isn't approved and status isn't received, create a pending StockRequest
         if (($data['approval'] ?? '') !== 'approved' && ($data['status'] ?? '') !== 'received') {
             try {
-                DB::transaction(function() use ($data, $out) {
+                DB::transaction(function () use ($data, $out) {
                     $req = StockRequest::create([
                         'client_id' => $data['client_id'],
                         'office' => $data['office'] ?? '',
@@ -242,11 +321,13 @@ class OutboundController extends Controller
                 });
             } catch (\Throwable $e) {
                 // log but continue — outbound was created
-                \Log::error('Failed to create stock request for outbound: '.$e->getMessage());
+                \Log::error('Failed to create stock request for outbound: ' . $e->getMessage());
             }
         }
 
-        return redirect()->route('outbound.index')->with('success', 'Outbound created.');
+        return redirect()
+            ->route('outbound.index')
+            ->with('success', 'Outbound created and stock deducted.');
     }
 
     public function update(Request $request, Outbound $outbound)
@@ -348,8 +429,6 @@ class OutboundController extends Controller
         $pdf->set_option('isRemoteEnabled', true);
         $pdf->set_option('isHtml5ParserEnabled', true);
         $pdf->set_option('isFontSubsettingEnabled', true);
-        $pdf->set_option('enablePhp', true);
-        $pdf->set_option('enableJavascript', true);
         $pdf->setPaper('a4', 'portrait');
 
         $html = view('admin.outbound-report-pdf', compact('outbounds', 'dateFrom', 'dateTo', 'summary'))->render();

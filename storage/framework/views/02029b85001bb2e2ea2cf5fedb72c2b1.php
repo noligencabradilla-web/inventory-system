@@ -1,15 +1,13 @@
-@extends('layouts.app')
-
-@php
+<?php
   $brand = 'Inventory System';
   $pageTitle = 'Outbound';
-@endphp
+?>
 
-@section('sidebar')
-    @include('partials.admin-sidebar')
-@endsection
+<?php $__env->startSection('sidebar'); ?>
+    <?php echo $__env->make('partials.admin-sidebar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php $__env->stopSection(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <style>
     .toolbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
     .btn-link{
@@ -23,7 +21,7 @@
         font-weight:700;
     }
     .btn-link:hover{ background: rgba(37,99,235,.18); }
-    .btn-add-outbound:hover{ 
+    .btn-add-outbound:hover{
         background: linear-gradient(135deg, #2563eb, #1e40af) !important;
         transform: translateY(-3px) !important;
         box-shadow: 0 8px 20px rgba(59,130,246,0.3) !important;
@@ -108,9 +106,9 @@
         color:var(--text);
     }
 
-    .ob-toggle{ 
-        color:var(--muted); 
-        font-size:12px; 
+    .ob-toggle{
+        color:var(--muted);
+        font-size:12px;
         font-weight:600;
         display:flex;
         align-items:center;
@@ -136,13 +134,13 @@
     }
 
     .pill{
-        display:inline-block; 
-        padding:5px 12px; 
+        display:inline-block;
+        padding:5px 12px;
         border-radius:999px;
         border:1px solid rgba(37,99,235,.45);
         background: rgba(37,99,235,.14);
         color: var(--blue);
-        font-size:12px; 
+        font-size:12px;
         font-weight:800;
     }
     .pill.orange{
@@ -267,7 +265,7 @@
         margin:0;
         font-size:16px;
     }
-    
+
     /* Modal button hover effects */
     .modal-btn-primary:hover{
         background: linear-gradient(135deg, #2563eb, #1e40af) !important;
@@ -280,7 +278,7 @@
         transform: translateY(-1px) !important;
         box-shadow: 0 4px 8px rgba(59,130,246,0.2) !important;
     }
-    
+
     .modal-btn-secondary:hover{
         background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
         transform: translateY(-2px) !important;
@@ -304,85 +302,87 @@
         Add Outbound
         <span style="position:absolute; top:0; left:-100%; width:100%; height:100%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.2)); transition:left 0.3s ease;"></span>
     </button>
+
+    
 </div>
-@php
+<?php
     $stocks = \App\Models\Stock::all();
-    $clients = \App\Models\User::where('role', 'client')->get();
+    // $clients = \App\Models\User::where('role', 'client')->get();
     $pendingRequests = class_exists(\App\Models\StockRequest::class) ? \App\Models\StockRequest::where('status','pending')->count() : 0;
     $pendingPR = class_exists(\App\Models\PasswordResetRequest::class) ? \App\Models\PasswordResetRequest::where('status','pending')->count() : 0;
     $totalPending = $pendingRequests + $pendingPR;
-@endphp
+?>
 
-{{-- Outbound-specific notification button removed to avoid duplicate notifications. Main notifications partial is used instead. --}}
 
-<form method="get" action="{{ route('outbound.index') }}">
+
+<form method="get" action="<?php echo e(route('outbound.index')); ?>">
     <div class="search-filter-wrap">
-        <input type="text" id="searchInput" name="search" class="search-input" value="{{ old('search', request('search')) }}" placeholder="Search by client, office, or item...">
+        <input type="text" id="searchInput" name="search" class="search-input" value="<?php echo e(old('search', request('search'))); ?>" placeholder="Search by client, office, or item...">
     </div>
 
     <div class="report-filters">
         <div>
             <label for="date_from">Date From</label>
-            <input type="date" id="date_from" name="date_from" value="{{ old('date_from', $dateFrom ?? request('date_from')) }}">
+            <input type="date" id="date_from" name="date_from" value="<?php echo e(old('date_from', $dateFrom ?? request('date_from'))); ?>">
         </div>
         <div>
             <label for="date_to">Date To</label>
-            <input type="date" id="date_to" name="date_to" value="{{ old('date_to', $dateTo ?? request('date_to')) }}">
+            <input type="date" id="date_to" name="date_to" value="<?php echo e(old('date_to', $dateTo ?? request('date_to'))); ?>">
         </div>
         <div>
             <label for="office">Office</label>
             <select id="office" name="office" style="width:100%; min-width:180px; padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--text); font-size:14px;">
-                <option value="all" {{ empty($office ?? request('office')) || ($office ?? request('office')) === 'all' ? 'selected' : '' }}>All Offices</option>
-                @foreach($offices as $officeOption)
-                    <option value="{{ $officeOption }}" {{ ($office ?? request('office')) === $officeOption ? 'selected' : '' }}>{{ $officeOption }}</option>
-                @endforeach
+                <option value="all" <?php echo e(empty($office ?? request('office')) || ($office ?? request('office')) === 'all' ? 'selected' : ''); ?>>All Offices</option>
+                <?php $__currentLoopData = $offices; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $officeOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <option value="<?php echo e($officeOption); ?>" <?php echo e(($office ?? request('office')) === $officeOption ? 'selected' : ''); ?>><?php echo e($officeOption); ?></option>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </select>
         </div>
         <div class="report-actions">
             <button type="submit" class="btn-link">Apply</button>
-            <a href="{{ route('admin.outbound.report.pdf', array_filter(request()->only(['search','date_from','date_to','office']))) }}" class="btn-link" style="background:var(--blue); color:#fff; border:none;">Download PDF</a>
+            <a href="<?php echo e(route('admin.outbound.report.pdf', array_filter(request()->only(['search','date_from','date_to','office'])))); ?>" class="btn-link" style="background:var(--blue); color:#fff; border:none;">Download PDF</a>
         </div>
     </div>
 </form>
 
-@php
+<?php
     // Group outbounds by date first, then by client_id and office
     $groupedByDate = $outbounds->groupBy(function($item) {
         return $item->deducted_at?->format('Y-m-d') ?? $item->created_at?->format('Y-m-d') ?? 'No Date';
     });
-@endphp
+?>
 
-@forelse($groupedByDate as $dateKey => $dateGroup)
-    @php
+<?php $__empty_1 = true; $__currentLoopData = $groupedByDate; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $dateKey => $dateGroup): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+    <?php
         // Group by client and office within each date
         $grouped = $dateGroup->groupBy(function($item) {
             return $item->client_id . '-' . $item->office;
         });
-    @endphp
+    ?>
 
-    @forelse($grouped as $groupKey => $group)
-        @php
+    <?php $__empty_2 = true; $__currentLoopData = $grouped; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $groupKey => $group): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_2 = false; ?>
+        <?php
             $firstRow = $group->first();
             $obid = 'ob-' . $firstRow->client_id . '-' . str_replace(' ', '-', strtolower($firstRow->office)) . '-' . $dateKey;
             $clientName = $firstRow->client?->name ?? 'Unknown Client';
             $clientOffice = $firstRow->office ?? '—';
             $groupDate = $firstRow->deducted_at?->format('M d, Y') ?? $firstRow->created_at?->format('M d, Y') ?? '—';
-        @endphp
+        ?>
 
-        <div class="ob-card" data-client="{{ strtolower($clientName) }}" data-office="{{ strtolower($clientOffice) }}">
-            <div class="ob-header" onclick="toggleOb('{{ $obid }}')">
+        <div class="ob-card" data-client="<?php echo e(strtolower($clientName)); ?>" data-office="<?php echo e(strtolower($clientOffice)); ?>">
+            <div class="ob-header" onclick="toggleOb('<?php echo e($obid); ?>')">
                 <div style="flex:1;">
-                    <div class="ob-title">{{ $clientOffice }}</div>
+                    <div class="ob-title"><?php echo e($clientOffice); ?></div>
                 </div>
 
                 <div class="ob-header-right">
                     <div class="ob-count" style="text-align:right;">
-                        <div style="font-size:13px;color:var(--muted);">{{ $group->count() }} item{{ $group->count() !== 1 ? 's' : '' }}</div>
+                        <div style="font-size:13px;color:var(--muted);"><?php echo e($group->count()); ?> item<?php echo e($group->count() !== 1 ? 's' : ''); ?></div>
                     </div>
                 </div>
             </div>
 
-            <div id="{{ $obid }}" class="ob-body">
+            <div id="<?php echo e($obid); ?>" class="ob-body">
                 <div class="table-wrap">
                     <table>
                         <thead>
@@ -399,8 +399,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($group as $row)
-                                @php
+                            <?php $__currentLoopData = $group; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $row): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php
                                     $status = $row->status ?? 'released';
                                     $approval = $row->approval ?? 'pending';
                                     $stockId = $row->stock?->id_no ?? $row->stock_id;
@@ -409,77 +409,77 @@
                                     $memberEmail = $row->member?->email ?? '—';
                                     $isDirectRequest = $row->is_direct_request ?? false;
                                     $isUrgentOutbound = $row->is_urgent_outbound ?? false;
-                                @endphp
+                                ?>
                                 <tr style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);">
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                                        <div style="font-weight:700; color:#1e40af; font-size:14px;">{{ $stockId }}</div>
-                                        @if($isDirectRequest && !$isUrgentOutbound)
+                                        <div style="font-weight:700; color:#1e40af; font-size:14px;"><?php echo e($stockId); ?></div>
+                                        <?php if($isDirectRequest && !$isUrgentOutbound): ?>
                                             <div style="margin-top:4px;">
                                                 <span style="padding:2px 6px; border-radius:4px; background:#10b981; color:#fff; font-size:10px; font-weight:700;">DIRECT</span>
                                             </div>
-                                        @endif
+                                        <?php endif; ?>
                                     </td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                                        <div style="color:#64748b; font-size:14px;">{{ $description }}</div>
+                                        <div style="color:#64748b; font-size:14px;"><?php echo e($description); ?></div>
                                     </td>
-                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->stock?->unit ?? '—' }}</td>
-                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->total ?? '—' }}</td>
-                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $memberName }}</td>
+                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($row->stock?->unit ?? '—'); ?></td>
+                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($row->total ?? '—'); ?></td>
+                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($memberName); ?></td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                                        @if($approval === 'approved')
-                                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;">{{ ucfirst($approval) }}</span>
-                                        @else
-                                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fed7aa; background:#fff7ed; color:#ea580c;">{{ ucfirst($approval) }}</span>
-                                        @endif
+                                        <?php if($approval === 'approved'): ?>
+                                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;"><?php echo e(ucfirst($approval)); ?></span>
+                                        <?php else: ?>
+                                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fed7aa; background:#fff7ed; color:#ea580c;"><?php echo e(ucfirst($approval)); ?></span>
+                                        <?php endif; ?>
                                     </td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
-                                        @if($isUrgentOutbound)
+                                        <?php if($isUrgentOutbound): ?>
                                             <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fecaca; background:#fef2f2; color:#dc2626;">URGENT</span>
-                                        @elseif($isDirectRequest)
+                                        <?php elseif($isDirectRequest): ?>
                                             <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;">Direct</span>
-                                        @else
+                                        <?php else: ?>
                                             <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;">Released</span>
-                                        @endif
+                                        <?php endif; ?>
                                     </td>
                                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">
-                                        @if($row->received_by)
-                                            <div style="font-size:13px; font-weight:600; color:#059669;">{{ $row->received_by }}</div>
-                                        @else
+                                        <?php if($row->received_by): ?>
+                                            <div style="font-size:13px; font-weight:600; color:#059669;"><?php echo e($row->received_by); ?></div>
+                                        <?php else: ?>
                                             <span style="color:#9ca3af;">—</span>
-                                        @endif
+                                        <?php endif; ?>
                                     </td>
-                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;">{{ $row->deducted_at?->format('M d, Y') ?? $row->created_at?->format('M d, Y') ?? '—' }}</td>
+                                    <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff; color:#475569; font-weight:600;"><?php echo e($row->deducted_at?->format('M d, Y') ?? $row->created_at?->format('M d, Y') ?? '—'); ?></td>
                                 </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-    @empty
+    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_2): ?>
         <p style="color:var(--muted); margin-bottom:20px;">No records for this date.</p>
-    @endforelse
-@empty
+    <?php endif; ?>
+<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
     <div class="no-results">
         <div class="no-results-icon">📦</div>
         <p class="no-results-text">No outbound records found.</p>
     </div>
-@endforelse
+<?php endif; ?>
 
 <!-- Add Outbound Modal -->
 <div id="outboundModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); z-index:9999; justify-content:center; align-items:center;">
     <div style="background:#ffffff; border-radius:16px; padding:24px; width:520px; max-width:95%; box-shadow:0 18px 40px rgba(2,6,23,.2);">
         <h3 style="margin:0 0 20px 0; font-size:18px; font-weight:800; color:#1e293b;">Add Outbound</h3>
-        
-        <form id="outboundForm" method="POST" action="{{ route('outbound.store') }}">
-            @csrf
-            
+
+        <form id="outboundForm" method="POST" action="<?php echo e(route('outbound.store')); ?>">
+            <?php echo csrf_field(); ?>
+
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Select Stock</label>
                 <div style="position:relative;">
                     <!-- Hidden input to store the selected stock ID -->
                     <input type="hidden" name="stock_id" id="stockIdInput" required>
-                    
+
                     <!-- Custom dropdown trigger -->
                     <div id="stockDropdown" style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); cursor:pointer; position:relative;">
                         <span id="selectedStockText">-- Choose a stock --</span>
@@ -487,84 +487,98 @@
                             <path d="M6 9l6 6 6-6"></path>
                         </svg>
                     </div>
-                    
+
                     <!-- Custom dropdown with integrated search -->
                     <div id="stockDropdownMenu" style="position:absolute; top:100%; left:0; right:0; background:#ffffff; border:2px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 25px rgba(15,23,42,.15); margin-top:4px; max-height:300px; overflow-y:auto; z-index:1000; display:none;">
                         <!-- Search bar inside dropdown -->
                         <div style="position:relative; border-bottom:1px solid #e2e8f0;">
                             <input type="text" id="stockSearchInput" placeholder="Search stocks..." style="width:100%; padding:12px 14px; border:none; border-radius:0; font-size:14px; color:#374151; background:#ffffff; outline:none;">
                         </div>
-                        
+
                         <!-- Stock options -->
                         <div id="stockOptions">
-                            @foreach($stocks as $stock)
-                                <div class="stock-option-item" data-stock-id="{{ $stock->id }}" data-stock-text="{{ $stock->description }} ({{ $stock->id_no }})" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
-                                    <div style="font-weight:600; color:#1e40af;">{{ $stock->description }}</div>
-                                    <div style="font-size:12px; color:#64748b; margin-top:2px;">ID: {{ $stock->id_no }} | Available: {{ $stock->stock }}</div>
+                            <?php $__currentLoopData = $stocks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $stock): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <div class="stock-option-item" data-stock-id="<?php echo e($stock->id); ?>" data-stock-text="<?php echo e($stock->description); ?> (<?php echo e($stock->id_no); ?>)" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
+                                    <div style="font-weight:600; color:#1e40af;"><?php echo e($stock->description); ?></div>
+                                    <div style="font-size:12px; color:#64748b; margin-top:2px;">ID: <?php echo e($stock->id_no); ?> | Available: <?php echo e($stock->stock); ?></div>
                                 </div>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Client</label>
                 <div style="position:relative;">
                     <!-- Hidden input to store the selected client ID -->
                     <input type="hidden" name="client_id" id="clientIdInput">
                     <input type="hidden" name="office" id="officeInput">
-                    
+                    <input type="hidden" name="office_id" id="officeIdInput">
+
+                    <input type="hidden" name="is_urgent_outbound" id="is_urgent_outbound" value="false">
+                    <input type="hidden" name="urgent_recipient_name" id="urgent_recipient_name">
+                    <input type="hidden" name="urgent_recipient_office" id="urgent_recipient_office">
+
                     <!-- Input field for client/member/non-member entry -->
-                    <input 
-                        type="text" 
-                        id="clientDropdown" 
-                        name="recipient_name" 
+                    <input
+                        type="text"
+                        id="clientDropdown"
+                        name="recipient_name"
                         placeholder="Type client name, member name, or non-member name..."
                         style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); outline:none;"
                     >
-                    
+
                     <!-- Custom dropdown -->
                     <div id="clientDropdownMenu" style="position:absolute; top:100%; left:0; right:0; background:#ffffff; border:2px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 25px rgba(15,23,42,.15); margin-top:4px; max-height:300px; overflow-y:auto; z-index:1000; display:none;">
                         <!-- Client and Member options -->
                         <div id="clientOptions">
-                            @foreach($clients as $client)
-                                <div class="client-option-item" data-type="client" data-client-id="{{ $client->id }}" data-client-name="{{ $client->name }}" data-client-office="{{ $client->office ?? 'Not specified' }}" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
-                                    <div style="font-weight:600; color:#1e40af;">{{ $client->name }}</div>
-                                    <div style="font-size:12px; color:#64748b; margin-top:2px;">Client • Office: {{ $client->office ?? 'Not specified' }}</div>
+                            <?php $__currentLoopData = $clients; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $client): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <div class="client-option-item" data-type="client" data-client-id="<?php echo e($client->id); ?>" data-client-name="<?php echo e($client->name); ?>" data-client-office="<?php echo e($client->office ?? 'Not specified'); ?>" data-client-office-id="<?php echo e($client->office_id); ?>" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
+                                    <div style="font-weight:600; color:#1e40af;"><?php echo e($client->name); ?></div>
+                                    <div style="font-size:12px; color:#64748b; margin-top:2px;">Client • Office: <?php echo e($client->office ?? 'Not specified'); ?></div>
                                 </div>
-                            @endforeach
-                            @foreach($members as $member)
-                                <div class="client-option-item" data-type="member" data-client-id="{{ $member->client_id }}" data-member-id="{{ $member->id }}" data-client-name="{{ $member->name }}" data-client-office="{{ $member->client->office ?? 'non office member' }}" style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
-                                    <div style="font-weight:600; color:#059669;">{{ $member->name }}</div>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                           <?php $__currentLoopData = $members; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $member): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <div class="client-option-item"
+                                    data-type="member"
+                                    data-client-id="<?php echo e($member->client_id); ?>"
+                                    data-member-id="<?php echo e($member->id); ?>"
+                                    data-client-name="<?php echo e($member->name); ?>"
+                                    data-client-office="<?php echo e($member->client?->office?->office ?? 'non office member'); ?>"
+                                    data-client-office-id="<?php echo e($member->client?->s_p_office_id); ?>"
+                                    style="padding:12px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.2s ease; font-size:14px; color:#374151;">
+
+                                    <div style="font-weight:600; color:#059669;"><?php echo e($member->name); ?></div>
                                     <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                                        Member of {{ $member->client?->name ?? 'Unknown client' }} • Office:
-                                        {{ $member->client?->office?->office ?? 'non office member' }}
+                                        Member of <?php echo e($member->client?->name ?? 'Unknown client'); ?> • Office:
+                                        <?php echo e($member->client?->office?->office ?? 'non office member'); ?>
+
                                     </div>
                                 </div>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <div style="margin-bottom:16px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Office/Department</label>
                 <div id="officeDisplay" style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#64748b; background:#f8fafc; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05);">
                     Select a client to view their office
                 </div>
             </div>
-            
+
             <div style="margin-bottom:20px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Quantity</label>
                 <input type="number" name="total" id="modalTotal" min="1" value="1" required style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05);">
             </div>
-            
+
             <div style="margin-bottom:20px;">
                 <label style="display:block; margin-bottom:8px; font-weight:700; color:#374151; font-size:14px;">Reason for Request</label>
                 <textarea name="reason" placeholder="Enter reason for this outbound request..." style="width:100%; padding:12px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; color:#374151; background:#ffffff; transition:all 0.3s ease; box-shadow:0 1px 3px rgba(15,23,42,.05); resize:vertical; min-height:80px; outline:none;"></textarea>
             </div>
-            
+
             <div style="display:flex; gap:12px;">
                 <button type="submit" class="modal-btn-primary" style="flex:1; padding:12px 20px; border-radius:10px; border:2px solid #3b82f6; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#ffffff; font-weight:700; transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow:0 4px 12px rgba(59,130,246,0.2); position:relative; overflow:hidden; transform:translateY(0); pointer-events:auto;">
                     <span style="position:relative; z-index:1;">Add Outbound</span>
@@ -620,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const stockIdInput = document.getElementById('stockIdInput');
     const selectedStockText = document.getElementById('selectedStockText');
     const stockOptions = document.querySelectorAll('.stock-option-item');
-    
+
     if (stockDropdown && stockDropdownMenu && stockSearchInput) {
         // Toggle dropdown when clicking on the trigger
         stockDropdown.addEventListener('click', function(e) {
@@ -633,18 +647,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 resetStockOptions();
             }
         });
-        
+
         // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!stockDropdown.contains(e.target) && !stockDropdownMenu.contains(e.target)) {
                 stockDropdownMenu.style.display = 'none';
             }
         });
-        
+
         // Search functionality
         stockSearchInput.addEventListener('input', function() {
             const searchTerm = stockSearchInput.value.toLowerCase();
-            
+
             stockOptions.forEach(option => {
                 const stockText = option.dataset.stockText.toLowerCase();
                 if (stockText.includes(searchTerm)) {
@@ -654,42 +668,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
-        
+
         // Handle option selection
         stockOptions.forEach(option => {
             option.addEventListener('click', function(e) {
                 e.stopPropagation();
                 const stockId = option.dataset.stockId;
                 const stockText = option.dataset.stockText;
-                
+
                 stockIdInput.value = stockId;
                 selectedStockText.textContent = stockText;
                 stockDropdownMenu.style.display = 'none';
-                
+
                 // Add hover effect
                 option.style.background = '#f8fafc';
                 setTimeout(() => {
                     option.style.background = '';
                 }, 200);
             });
-            
+
             // Add hover effect
             option.addEventListener('mouseenter', function() {
                 option.style.background = '#f8fafc';
             });
-            
+
             option.addEventListener('mouseleave', function() {
                 option.style.background = '';
             });
         });
-        
+
         function resetStockOptions() {
             stockOptions.forEach(option => {
                 option.style.display = 'block';
             });
         }
     }
-    
+
     // Client dropdown functionality
     const clientDropdown = document.getElementById('clientDropdown');
     const clientDropdownMenu = document.getElementById('clientDropdownMenu');
@@ -701,21 +715,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const urgentNameInput = document.getElementById('urgent_recipient_name');
     const urgentOfficeInput = document.getElementById('urgent_recipient_office');
     const clientOptions = document.querySelectorAll('.client-option-item');
-    
+
     if (clientDropdown && clientDropdownMenu) {
         // Show dropdown when input receives focus
         clientDropdown.addEventListener('focus', function(e) {
             clientDropdownMenu.style.display = 'block';
             resetClientOptions();
         });
-        
+
         // Handle input typing to show dropdown and filter results
         clientDropdown.addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
-            
+
             if (searchTerm.length >= 1) {
                 clientDropdownMenu.style.display = 'block';
-                
+
                 let hasMatches = false;
                 // Filter options based on input (both clients and members)
                 clientOptions.forEach(option => {
@@ -723,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const clientOffice = option.dataset.clientOffice.toLowerCase();
                     const type = option.dataset.type || 'client';
                     const searchText = clientName + ' ' + clientOffice + ' ' + type;
-                    
+
                     if (searchText.includes(searchTerm)) {
                         option.style.display = 'block';
                         hasMatches = true;
@@ -731,7 +745,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         option.style.display = 'none';
                     }
                 });
-                
+
                 // Handle non-member option
                 if (!hasMatches && searchTerm.length >= 2) {
                     addNonMemberOption();
@@ -743,14 +757,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 removeNonMemberOption();
             }
         });
-        
+
         // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!clientDropdown.contains(e.target) && !clientDropdownMenu.contains(e.target)) {
                 clientDropdownMenu.style.display = 'none';
             }
         });
-        
+
         // Helper functions for non-member option handling
         function addNonMemberOption() {
             let nonMemberOption = document.getElementById('nonMemberOption');
@@ -763,68 +777,45 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div style="font-weight:600; color:#dc2626;">${clientDropdown.value}</div>
                     <div style="font-size:12px; color:#6b7280; margin-top:2px;">Non-member - Will create urgent recipient</div>
                 `;
-                
+
                 nonMemberOption.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    const recipientName = clientDropdown.value;
-                    
-                    // Clear client data and set as urgent recipient
+
+                    const recipientName = clientDropdown.value.trim();
+
                     clientIdInput.value = '';
                     officeInput.value = 'Non-member';
                     officeIdInput.value = '';
 
                     clientDropdown.value = recipientName;
-                    
-                    // Add hidden fields for urgent recipient
-                    let urgentNameInput = document.getElementById('urgent_recipient_name');
-                    let urgentOfficeInput = document.getElementById('urgent_recipient_office');
-                    let isUrgentInput = document.getElementById('is_urgent_outbound');
-                    
-                    if (!urgentNameInput) {
-                        urgentNameInput = document.createElement('input');
-                        urgentNameInput.type = 'hidden';
-                        urgentNameInput.id = 'urgent_recipient_name';
-                        urgentNameInput.name = 'urgent_recipient_name';
-                        clientDropdown.parentNode.appendChild(urgentNameInput);
-                    }
-                    
-                    if (!urgentOfficeInput) {
-                        urgentOfficeInput = document.createElement('input');
-                        urgentOfficeInput.type = 'hidden';
-                        urgentOfficeInput.id = 'urgent_recipient_office';
-                        urgentOfficeInput.name = 'urgent_recipient_office';
-                        clientDropdown.parentNode.appendChild(urgentOfficeInput);
-                    }
-                    
-                    if (!isUrgentInput) {
-                        isUrgentInput = document.createElement('input');
-                        isUrgentInput.type = 'hidden';
-                        isUrgentInput.id = 'is_urgent_outbound';
-                        isUrgentInput.name = 'is_urgent_outbound';
-                        isUrgentInput.value = 'true';
-                        clientDropdown.parentNode.appendChild(isUrgentInput);
-                    }
-                    
+
+                    isUrgentInput.value = 'true';
                     urgentNameInput.value = recipientName;
-                    urgentOfficeInput.value = officeInput.value;
-                    
+                    urgentOfficeInput.value = 'Non-member';
+
+                    const memberInput = document.getElementById('member_id');
+                    const directRequestInput = document.getElementById('is_direct_request');
+
+                    if (memberInput) memberInput.remove();
+                    if (directRequestInput) directRequestInput.remove();
+
                     if (officeDisplay) {
                         officeDisplay.textContent = 'Non-member';
                         officeDisplay.style.color = '#dc2626';
                         officeDisplay.style.background = '#fef2f2';
                     }
-                    
+
                     clientDropdownMenu.style.display = 'none';
                 });
-                
+
                 nonMemberOption.addEventListener('mouseenter', function() {
                     this.style.background = '#fef2f2';
                 });
-                
+
                 nonMemberOption.addEventListener('mouseleave', function() {
                     this.style.background = '';
                 });
-                
+
                 document.getElementById('clientOptions').appendChild(nonMemberOption);
             } else {
                 nonMemberOption.querySelector('div').textContent = clientDropdown.value;
@@ -838,7 +829,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 nonMemberOption.style.display = 'none';
             }
         }
-        
+
         // Handle option selection
         clientOptions.forEach(option => {
             option.addEventListener('click', function(e) {
@@ -848,11 +839,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const clientName = option.dataset.clientName;
                 const clientOffice = option.dataset.clientOffice;
                 const memberId = option.dataset.memberId;
-                
+                const officeId = option.dataset.clientOfficeId;
+                console.log(officeId);
                 clientIdInput.value = clientId;
                 officeInput.value = clientOffice;
                 clientDropdown.value = clientName;
-                
+                officeIdInput.value = officeId;
+
                 // Handle member-specific logic
                 if (type === 'member' && memberId) {
                     // Add member_id hidden field
@@ -865,7 +858,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         clientDropdown.parentNode.appendChild(memberInput);
                     }
                     memberInput.value = memberId;
-                    
+
                     // Add is_direct_request hidden field
                     let directRequestInput = document.getElementById('is_direct_request');
                     if (!directRequestInput) {
@@ -876,7 +869,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         directRequestInput.value = 'true';
                         clientDropdown.parentNode.appendChild(directRequestInput);
                     }
-                    
+
                     // Disable office field for non-office members
                     if (clientOffice === 'non office member') {
                         officeInput.value = 'non office member';
@@ -894,24 +887,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 officeDisplay.style.color = '#374151';
                 officeDisplay.style.background = '#ffffff';
                 clientDropdownMenu.style.display = 'none';
-                
+
                 // Add hover effect
                 option.style.background = '#f8fafc';
                 setTimeout(() => {
                     option.style.background = '';
                 }, 200);
             });
-            
+
             // Add hover effect
             option.addEventListener('mouseenter', function() {
                 option.style.background = '#f8fafc';
             });
-            
+
             option.addEventListener('mouseleave', function() {
                 option.style.background = '';
             });
         });
-        
+
         function resetClientOptions() {
             clientOptions.forEach(option => {
                 option.style.display = 'block';
@@ -927,4 +920,6 @@ document.getElementById('outboundModal').addEventListener('click', function(e) {
     }
 });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\wamp64\www\inventory-system\resources\views/admin/outbound/index.blade.php ENDPATH**/ ?>

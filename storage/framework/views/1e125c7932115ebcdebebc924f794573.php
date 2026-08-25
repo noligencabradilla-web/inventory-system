@@ -1,7 +1,7 @@
-@php
+<?php
     // Add enhanced styles for client sidebar
     $enhancedSidebar = true;
-@endphp
+?>
 
 <style>
 /* Enhanced client sidebar styles */
@@ -108,8 +108,8 @@
 }
 </style>
 
-@if(auth()->user()->role === 'subaccount' && auth()->user()->subaccount)
-    <a href="{{ route('client.account.subaccounts.show', ['subaccount' => auth()->user()->subaccount, 'tab' => 'details']) }}" class="{{ request()->routeIs('client.account.subaccounts.show') && request('tab', 'details') === 'details' ? 'active' : '' }} nav-item">
+<?php if(auth()->user()->role === 'subaccount' && auth()->user()->subaccount): ?>
+    <a href="<?php echo e(route('client.account.subaccounts.show', ['subaccount' => auth()->user()->subaccount, 'tab' => 'details'])); ?>" class="<?php echo e(request()->routeIs('client.account.subaccounts.show') && request('tab', 'details') === 'details' ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
             <circle cx="12" cy="7" r="4"></circle>
@@ -118,7 +118,7 @@
         <span class="nav-tooltip">View your subaccount information</span>
     </a>
 
-    <a href="{{ route('client.account.subaccounts.show', ['subaccount' => auth()->user()->subaccount, 'tab' => 'members']) }}" class="{{ request()->routeIs('client.account.subaccounts.show') && request('tab') === 'members' ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.account.subaccounts.show', ['subaccount' => auth()->user()->subaccount, 'tab' => 'members'])); ?>" class="<?php echo e(request()->routeIs('client.account.subaccounts.show') && request('tab') === 'members' ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
@@ -129,7 +129,7 @@
         <span class="nav-tooltip">Manage subaccount members</span>
     </a>
 
-    <a href="{{ route('client.account.subaccounts.show', ['subaccount' => auth()->user()->subaccount, 'tab' => 'inventory']) }}" class="{{ request()->routeIs('client.account.subaccounts.show') && request('tab') === 'inventory' ? 'active' : '' }} nav-item pulse">
+    <a href="<?php echo e(route('client.account.subaccounts.show', ['subaccount' => auth()->user()->subaccount, 'tab' => 'inventory'])); ?>" class="<?php echo e(request()->routeIs('client.account.subaccounts.show') && request('tab') === 'inventory' ? 'active' : ''); ?> nav-item pulse">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
@@ -139,7 +139,7 @@
         <span class="nav-tooltip">Browse available inventory</span>
     </a>
 
-    <a href="{{ route('client.account') }}" class="{{ request()->routeIs('client.account') && request('tab', 'settings') !== 'inventory' && request('tab') !== 'subaccounts' ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.account')); ?>" class="<?php echo e(request()->routeIs('client.account') && request('tab', 'settings') !== 'inventory' && request('tab') !== 'subaccounts' ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M12 1v6m0 6v6m4.22-13.22l4.24 4.24M1.54 9.96l4.24 4.24M1.54 14.04l4.24-4.24M18.46 14.04l4.24-4.24"></path>
@@ -147,8 +147,8 @@
         <span class="nav-text">Account Settings</span>
         <span class="nav-tooltip">Configure account preferences</span>
     </a>
-@else
-    <a href="{{ route('client.dashboard') }}" class="{{ request()->is('client') ? 'active' : '' }} nav-item">
+<?php else: ?>
+    <a href="<?php echo e(route('client.dashboard')); ?>" class="<?php echo e(request()->is('client') ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"></rect>
             <rect x="14" y="3" width="7" height="7"></rect>
@@ -159,7 +159,7 @@
         <span class="nav-tooltip">Main dashboard overview</span>
     </a>
 
-    <a href="{{ route('client.summary') }}" class="{{ request()->is('client/summary*') ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.summary')); ?>" class="<?php echo e(request()->is('client/summary*') ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
@@ -171,7 +171,7 @@
         <span class="nav-tooltip">View transaction records</span>
     </a>
 
-    <a href="{{ route('client.inventory') }}" class="{{ request()->is('client/inventory*') ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.inventory')); ?>" class="<?php echo e(request()->is('client/inventory*') ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
         </svg>
@@ -179,7 +179,7 @@
         <span class="nav-tooltip">Manage your inventory</span>
     </a>
 
-    <a href="{{ route('client.account', ['tab' => 'inventory']) }}" class="{{ request()->routeIs('client.account') && request('tab') === 'inventory' ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.account', ['tab' => 'inventory'])); ?>" class="<?php echo e(request()->routeIs('client.account') && request('tab') === 'inventory' ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 20V10"></path>
             <path d="M12 20V4"></path>
@@ -189,7 +189,7 @@
         <span class="nav-tooltip">View analytics and reports</span>
     </a>
 
-    <a href="{{ route('client.account', ['tab' => 'members']) }}" class="{{ request()->routeIs('client.account') && request('tab') === 'members' ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.account', ['tab' => 'members'])); ?>" class="<?php echo e(request()->routeIs('client.account') && request('tab') === 'members' ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
@@ -200,7 +200,7 @@
         <span class="nav-tooltip">Manage team members</span>
     </a>
 
-    <a href="{{ route('client.stocks') }}" class="{{ request()->is('client/stocks*') ? 'active' : '' }} nav-item pulse">
+    <a href="<?php echo e(route('client.stocks')); ?>" class="<?php echo e(request()->is('client/stocks*') ? 'active' : ''); ?> nav-item pulse">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="9" cy="21" r="1"></circle>
             <circle cx="20" cy="21" r="1"></circle>
@@ -209,8 +209,8 @@
         <span class="nav-text">Available Stocks</span>
         <span class="nav-tooltip">Browse stock catalog</span>
     </a>
-    <a href="{{ route('client.allocations.index') }}"
-    class="{{ request()->routeIs('client.allocations.index') ? 'active' : '' }} nav-item pulse">
+    <a href="<?php echo e(route('client.allocations.index')); ?>"
+    class="<?php echo e(request()->routeIs('client.allocations.index') ? 'active' : ''); ?> nav-item pulse">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
@@ -220,7 +220,7 @@
         <span class="nav-tooltip">View items allocated to your office</span>
     </a>
 
-    <a href="{{ route('client.requests') }}" class="{{ request()->is('client/requests*') ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.requests')); ?>" class="<?php echo e(request()->is('client/requests*') ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
@@ -230,7 +230,7 @@
     </a>
 
     
-    <a href="{{ route('client.notifications') }}" class="{{ request()->is('client/notifications*') ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.notifications')); ?>" class="<?php echo e(request()->is('client/notifications*') ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
             <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
@@ -239,7 +239,7 @@
         <span class="nav-tooltip">View your notifications</span>
     </a>
 
-    <a href="{{ route('client.account') }}" class="{{ request()->routeIs('client.account') && (!request('tab') || request('tab') === 'settings') ? 'active' : '' }} nav-item">
+    <a href="<?php echo e(route('client.account')); ?>" class="<?php echo e(request()->routeIs('client.account') && (!request('tab') || request('tab') === 'settings') ? 'active' : ''); ?> nav-item">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M12 1v6m0 6v6m4.22-13.22l4.24 4.24M1.54 9.96l4.24 4.24M1.54 14.04l4.24-4.24M18.46 14.04l4.24-4.24"></path>
@@ -247,4 +247,5 @@
         <span class="nav-text">Account Settings</span>
         <span class="nav-tooltip">Configure account preferences</span>
     </a>
-@endif
+<?php endif; ?>
+<?php /**PATH C:\wamp64\www\inventory-system\resources\views/client/sidebar.blade.php ENDPATH**/ ?>
