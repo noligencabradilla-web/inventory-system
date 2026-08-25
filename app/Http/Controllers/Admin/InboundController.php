@@ -3,66 +3,105 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Category;
 use App\Models\Inbound;
+use App\Models\InboundAllocation;
 use App\Models\Stock;
+use App\Models\StockAllocation;
 use Dompdf\Dompdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Services\StockAllocationService;
 
 class InboundController extends Controller
 {
     public function index(Request $request)
     {
-        $dateFrom = $request->query('date_from');
-        $dateTo = $request->query('date_to');
-
-        $inboundsQuery = \DB::table('inbounds')
+        $inbounds = Inbound::query()
             ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
-            ->leftJoin('categories', 'stocks.category_id', '=', 'categories.id')
+            ->leftJoin('stock_allocations', 'inbounds.id', '=', 'inbound_id')
             ->select(
+                'inbounds.id',
                 'stocks.id_no',
                 'stocks.description',
                 'stocks.unit',
                 'inbounds.total',
-                'categories.name as category_name',
-                'inbounds.created_at'
-            );
-
-        if ($dateFrom) {
-            $inboundsQuery->whereDate('inbounds.created_at', '>=', $dateFrom);
-        }
-
-        if ($dateTo) {
-            $inboundsQuery->whereDate('inbounds.created_at', '<=', $dateTo);
-        }
-
-        $inbounds = $inboundsQuery
+                DB::raw('COALESCE(SUM(allocation),0) as allocated')
+            )
+            ->groupBy(
+                'inbounds.id',
+                'stocks.id_no',
+                'stocks.description',
+                'stocks.unit',
+                'inbounds.total'
+            )
             ->orderByDesc('inbounds.created_at')
             ->get();
 
-        return view('admin.inbound.index', compact('inbounds'));
+        $spOffices = \App\Models\SPOffices::where('is_active', true)->orderBy('created_at', 'desc')->get();
+        $stocks = \App\Models\Stock::all();
+
+        return view('admin.inbound.index', compact('inbounds', 'spOffices', 'stocks'));
     }
 
     public function create()
     {
-        $stocks = Stock::all();
-        return view('admin.inbound.create', compact('stocks'));
+        $stocks = Stock::orderBy('description')->get();
+        $spOffices = \App\Models\SPOffices::where('is_active', true)->orderBy('created_at', 'desc')->get();
+
+        return view('admin.inbound.create', compact('stocks', 'spOffices'));
     }
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'stock_id' => 'required|exists:stocks,id',
-            'total' => 'required|integer|min:1'
+            'total' => 'required|integer|min:1',
+            // 'office_id' => 'nullable|exists:s_p_offices,id',
+            "office_allocation" => 'nullable|array',
+            "office_allocation.*.office_id" => 'required_with:allocate|exists:s_p_offices,id',
+            "office_allocation.*.quantity" => 'required_with:allocate|integer|min:1'
         ]);
 
-        $inbound = Inbound::create($request->only('stock_id', 'total'));
+        $hasAllocation = isset($validated['office_allocation']) && is_array($validated['office_allocation']);
 
-        // update stock
-        $stock = Stock::find($request->stock_id);
-        $stock->increment('total', $request->total);
-        $stock->increment('stock', $request->total);
+        DB::transaction(function () use ($validated, $hasAllocation) {
+            $newInbound = Inbound::create([
+                'stock_id' => $validated['stock_id'],
+                'total' => $validated['total'],
+            ]);
 
-        return redirect()->route('inbound.index')->with('success', 'Inbound added and stock updated.');
+            $stock = Stock::findOrFail($validated['stock_id']);
+            $stock->increment('total', $validated['total']);
+            $stock->increment('stock', $validated['total']);
+
+            if ($hasAllocation) {
+                foreach ($validated['office_allocation'] as $allocation) {
+                    if ($allocation['quantity'] > 0) {
+
+                        $payload = [
+                            'inbound_id' => $newInbound->id,
+                            'stock_id' => $stock->id,
+                            'office_id' => $allocation['office_id'],
+                            'allocation' => $allocation['quantity'],
+                        ];
+
+                        $stockService = new StockAllocationService();
+                        $stockService->createStockAllocation($payload);
+                    }
+                }
+            }
+        });
+
+        return redirect()
+            ->route('inbound.index')
+            ->with('success', 'Inbound added and stock updated.');
     }
 
     public function generateReportPdf(Request $request)
@@ -70,27 +109,7 @@ class InboundController extends Controller
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
 
-        $inboundsQuery = \DB::table('inbounds')
-            ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
-            ->leftJoin('categories', 'stocks.category_id', '=', 'categories.id')
-            ->select(
-                'stocks.id_no',
-                'stocks.description',
-                'stocks.unit',
-                'inbounds.total',
-                'categories.name as category_name',
-                'inbounds.created_at'
-            );
-
-        if ($dateFrom) {
-            $inboundsQuery->whereDate('inbounds.created_at', '>=', $dateFrom);
-        }
-
-        if ($dateTo) {
-            $inboundsQuery->whereDate('inbounds.created_at', '<=', $dateTo);
-        }
-
-        $inbounds = $inboundsQuery
+        $inbounds = $this->inboundQuery($request)
             ->orderByDesc('inbounds.created_at')
             ->get();
 
@@ -99,15 +118,18 @@ class InboundController extends Controller
             'total_quantity' => $inbounds->sum('total'),
         ];
 
+        $html = view('admin.inbound-report-pdf', compact(
+            'inbounds',
+            'dateFrom',
+            'dateTo',
+            'summary'
+        ))->render();
+
         $pdf = new Dompdf();
+        $pdf->setPaper('a4', 'portrait');
         $pdf->set_option('isRemoteEnabled', true);
         $pdf->set_option('isHtml5ParserEnabled', true);
         $pdf->set_option('isFontSubsettingEnabled', true);
-        $pdf->set_option('enablePhp', true);
-        $pdf->set_option('enableJavascript', true);
-        $pdf->setPaper('a4', 'portrait');
-
-        $html = view('admin.inbound-report-pdf', compact('inbounds', 'dateFrom', 'dateTo', 'summary'))->render();
         $pdf->set_option('chroot', base_path());
         $pdf->loadHtml($html);
         $pdf->render();
@@ -118,446 +140,245 @@ class InboundController extends Controller
         ]);
     }
 
-    /**
-     * Download an XLSX template for bulk inbound import.
-     * Columns: Description | Quantity | Category
-     * - The Category column has a dropdown populated from current categories + 'Unknown'.
-     * - Template contains only the header (no instructional/sample text).
-     */
     public function template()
     {
-        // categories for dropdown (always include 'Unknown')
-        $categories = \App\Models\Category::orderBy('name')->pluck('name')->toArray();
-        if (!in_array('Unknown', $categories)) $categories[] = 'Unknown';
+        $categories = Category::orderBy('name')->get(['name', 'code']);
 
-        // prepare stocks lookup (id_no, description, category)
-        $stocks = \App\Models\Stock::with('category')->orderBy('id_no')->get();
-        $stockRows = [];
-        foreach ($stocks as $s) {
-            $stockRows[] = [ $s->id_no, $s->description, optional($s->category)->name ?? 'Unknown' ];
+        if (! $categories->contains('name', 'Unknown')) {
+            $categories->push((object) [
+                'name' => 'Unknown',
+                'code' => 'UK',
+            ]);
         }
 
-        // If PhpSpreadsheet is available, build an XLSX with Stock ID dropdown + VLOOKUP autofill for Description/Category/Price
-        if (class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
-            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('Inbound Template');
+        $stocks = Stock::with('category')
+            ->orderBy('description')
+            ->get();
 
-            // Add a hidden lookup sheet for stocks (description, id_no, category)
-            $stockLookup = $spreadsheet->createSheet();
-            $stockLookup->setTitle('stocks_lookup');
-            foreach ($stockRows as $i => $rowVals) {
-                // store description in column A (used for dropdown), id_no in B, category in C
-                $stockLookup->setCellValue('A' . ($i + 1), $rowVals[1]);
-                $stockLookup->setCellValue('B' . ($i + 1), $rowVals[0]);
-                $stockLookup->setCellValue('C' . ($i + 1), $rowVals[2]);
-            }
-            $stockLookupCount = count($stockRows);
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Inbound Template');
 
-            // Instruction row (row 1) — visible guidance for users
-            $instructionText = $stockLookupCount > 0
-                ? 'Instructions: Enter or select Description (dropdown suggests existing stocks, but new descriptions are fully allowed). Quantity is required. Unit defaults to pcs if blank. Category auto-fill from Description when known.'
-                : 'Instructions: Enter new item descriptions (no existing stocks in database yet). Quantity is required. Unit defaults to pcs if blank. Category will be created automatically if missing.';
-            $sheet->fromArray([$instructionText], null, 'A1');
-            $instCell = $sheet->getCell('A1');
-            $instCell->getStyle()->getFont()->setItalic(true)->setSize(9)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF666666'));
-            $sheet->mergeCells('A1:D1');
+        $stockLookup = $spreadsheet->createSheet();
+        $stockLookup->setTitle('stocks_lookup');
 
-            // Header row (row 2): Description, Unit, Quantity, Category
-            $sheet->fromArray(['Description', 'Unit', 'Quantity', 'Category'], null, 'A2');
-            // Style header row
-            for ($col = 'A'; $col <= 'D'; $col++) {
-                $headerCell = $sheet->getCell($col . '2');
-                $headerCell->getStyle()->getFont()->setBold(true)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
-                $headerCell->getStyle()->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF4472C4');
-            }
+        foreach ($stocks as $index => $stock) {
+            $row = $index + 1;
 
-            // Add a hidden lookup sheet for categories
-            $catLookup = $spreadsheet->createSheet();
-            $catLookup->setTitle('categories_lookup');
-            foreach ($categories as $i => $name) {
-                $catLookup->setCellValue('A' . ($i + 1), $name);
-            }
-            $catLookupCount = count($categories);
+            $stockLookup->setCellValue("A{$row}", $stock->description);
+            $stockLookup->setCellValue("B{$row}", $stock->unit ?? 'pcs');
+            $stockLookup->setCellValue("C{$row}", optional($stock->category)->name ?? 'Unknown');
+        }
 
-            // Set data validation (dropdown) on Description column (A3..A1000) pointing to stocks_lookup descriptions
-            // Allow free-text entry so users can type new items; the dropdown simply suggests existing stocks.
-            $maxRows = 1000;
-            for ($row = 3; $row <= $maxRows; $row++) {
-                // Description field - use dropdown if stocks exist, otherwise completely free text
-                $cellDesc = $sheet->getCell('A' . $row);
-                if ($stockLookupCount > 0) {
-                    $validationDesc = $cellDesc->getDataValidation();
-                    $validationDesc->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
-                    // Allow free-text entry with no restrictions or warnings
-                    $validationDesc->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP);
-                    $validationDesc->setAllowBlank(true);
-                    $validationDesc->setShowInputMessage(false);
-                    $validationDesc->setShowErrorMessage(false);
-                    $validationDesc->setShowDropDown(true);
-                    $validationDesc->setFormula1('=stocks_lookup!$A$1:$A$' . $stockLookupCount);
-                }
-                // If no existing stocks, no validation applied - completely free text entry
+        $categoryLookup = $spreadsheet->createSheet();
+        $categoryLookup->setTitle('categories_lookup');
 
-                // Category autofill via formula when Description chosen (lookup by description)
-                // Place category in column E and price in column D (Description=A, Unit=B, Quantity=C, Price=D, Category=E)
-                $sheet->setCellValue('D' . $row, '=IF($A' . $row . '<>"",IFERROR(VLOOKUP($A' . $row . ',stocks_lookup!$A$1:$D$' . $stockLookupCount . ',3,FALSE),""),"")');
-                $sheet->setCellValue('E' . $row, '=IF($A' . $row . '<>"",IFERROR(VLOOKUP($A' . $row . ',stocks_lookup!$A$1:$D$' . $stockLookupCount . ',4,FALSE),""),"")');
+        foreach ($categories as $index => $category) {
+            $categoryLookup->setCellValue('A' . ($index + 1), $category->name);
+        }
 
-                // Category dropdown data validation as fallback when not using existing stock descriptions
-                $cellE = $sheet->getCell('E' . $row);
-                $validationE = $cellE->getDataValidation();
-                $validationE->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
-                $validationE->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP);
-                $validationE->setAllowBlank(true);
-                $validationE->setShowInputMessage(true);
-                $validationE->setShowErrorMessage(true);
-                $validationE->setShowDropDown(true);
-                $validationE->setFormula1('=categories_lookup!$A$1:$A$' . $catLookupCount);
+        $stockCount = max($stocks->count(), 1);
+        $categoryCount = max($categories->count(), 1);
+
+        $instruction = 'Instructions: Enter or select Description. Unit defaults to pcs if blank. Quantity is required. Category may use code such as CS.';
+
+        $sheet->setCellValue('A1', $instruction);
+        $sheet->mergeCells('A1:D1');
+        $sheet->getStyle('A1')->getFont()
+            ->setItalic(true)
+            ->setSize(9)
+            ->setColor(new Color('FF666666'));
+
+        $sheet->fromArray(['Description', 'Unit', 'Quantity', 'Category'], null, 'A2');
+
+        foreach (range('A', 'D') as $column) {
+            $sheet->getStyle($column . '2')->getFont()
+                ->setBold(true)
+                ->setColor(new Color('FFFFFFFF'));
+
+            $sheet->getStyle($column . '2')->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()
+                ->setARGB('FF4472C4');
+
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        for ($row = 3; $row <= 1000; $row++) {
+            if ($stocks->count() > 0) {
+                $descriptionValidation = $sheet->getCell("A{$row}")->getDataValidation();
+                $descriptionValidation->setType(DataValidation::TYPE_LIST);
+                $descriptionValidation->setAllowBlank(true);
+                $descriptionValidation->setShowDropDown(true);
+                $descriptionValidation->setShowErrorMessage(false);
+                $descriptionValidation->setFormula1("=stocks_lookup!\$A\$1:\$A\${$stockCount}");
+
+                $sheet->setCellValue(
+                    "B{$row}",
+                    '=IF($A' . $row . '<>"",IFERROR(VLOOKUP($A' . $row . ',stocks_lookup!$A$1:$C$' . $stockCount . ',2,FALSE),"pcs"),"")'
+                );
+
+                $sheet->setCellValue(
+                    "D{$row}",
+                    '=IF($A' . $row . '<>"",IFERROR(VLOOKUP($A' . $row . ',stocks_lookup!$A$1:$C$' . $stockCount . ',3,FALSE),""),"")'
+                );
             }
 
-            // Hide lookup sheets
-            $catLookup->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
-            $stockLookup->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
+            $categoryValidation = $sheet->getCell("D{$row}")->getDataValidation();
+            $categoryValidation->setType(DataValidation::TYPE_LIST);
+            $categoryValidation->setAllowBlank(true);
+            $categoryValidation->setShowDropDown(true);
+            $categoryValidation->setFormula1("=categories_lookup!\$A\$1:\$A\${$categoryCount}");
+        }
 
-            // Output XLSX (stream directly)
-            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-            $fileName = 'inbound-template.xlsx';
-            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        $stockLookup->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
+        $categoryLookup->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'inbound-template.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
             $writer->save('php://output');
-            exit;
-        }
-
-        // Fallback: return a CSV header-only template when PhpSpreadsheet is not available.
-        // Include a commented suggestions line (starts with #) listing current stock descriptions — importer will skip comment lines.
-        $stockDescriptions = array_map(function($r){ return $r[1]; }, $stockRows);
-        $suggestions = '# Suggestions: ' . implode(' | ', $stockDescriptions) . "\n";
-        $csv = "Description,Unit,Quantity,Price,Category\n" . $suggestions;
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="inbound-template.csv"',
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
-    /**
-     * Import inbound records from uploaded Excel/CSV file.
-     * - Auto-creates categories when missing (with auto-generated 2-letter code)
-     * - Auto-creates stocks when `Stock ID` not matched (uses category automation for id_no)
-     */
     public function import(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv,txt'
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt',
         ]);
 
-        $path = $request->file('file')->getPathname();
-        if (!is_readable($path)) {
-            return back()->with('error', 'Uploaded file is not readable.');
-        }
-
-        $ext = strtolower(pathinfo($request->file('file')->getClientOriginalName(), PATHINFO_EXTENSION));
-        $rows = [];
-        $usedSpreadsheet = false;
-
-        // Prefer PhpSpreadsheet detection/reading first — handles mislabeled uploads (XLSX content with .csv extension)
-        if (class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
-            try {
-                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
-                $sheet = $spreadsheet->getActiveSheet();
-                $rows = $sheet->toArray(null, true, true, true); // A,B,C...
-                $usedSpreadsheet = true;
-            } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
-                // If the user supplied an Excel filename, return a helpful error; otherwise fall back to CSV parsing.
-                if (in_array($ext, ['xlsx', 'xls'])) {
-                    return back()->with('error', 'Uploaded Excel file could not be read: ' . $e->getMessage());
-                }
-            } catch (\Exception $e) {
-                if (in_array($ext, ['xlsx', 'xls'])) {
-                    return back()->with('error', 'Uploaded Excel file could not be read: ' . $e->getMessage());
-                }
-            }
-        }
-
-        // CSV fallback when spreadsheet reader wasn't used / failed
-        if (! $usedSpreadsheet) {
-            $handle = fopen($path, 'r');
-            if (!$handle) return back()->with('error', 'Unable to open uploaded file.');
-            $idx = 0;
-            while (($data = fgetcsv($handle, 0, ',')) !== false) {
-                $idx++;
-                if (isset($data[0]) && str_starts_with(trim($data[0]), '#')) continue; // comments
-                // Map to A,B,C,D,E to support Description,Unit,Quantity,Price,Category
-                $rows[$idx] = [
-                    'A' => $data[0] ?? null,
-                    'B' => $data[1] ?? null,
-                    'C' => $data[2] ?? null,
-                    'D' => $data[3] ?? null,
-                    'E' => $data[4] ?? null,
-                ];
-            }
-            fclose($handle);
-        }
+        $rows = $this->readImportRows($request);
+        $headerRow = $this->detectHeaderRow($rows);
+        $columns = $this->mapColumns($rows[$headerRow] ?? []);
 
         $imported = 0;
         $createdStocks = 0;
         $errors = [];
-
-        // Determine column mapping from header row (row 2 in template with instruction row; row 1 in older imports)
-        $colMap = ['description' => 'A', 'unit' => null, 'quantity' => 'B', 'price' => null, 'category' => 'C', 'id' => null];
-        $headerRowIndex = 1; // assume older format without instruction row
-        if (isset($rows[2]) && is_array($rows[2])) {
-            // New template format: instruction at row 1, header at row 2
-            $headerVals = array_values($rows[2]);
-            $headerText = strtolower(implode('|', $headerVals));
-            if (str_contains($headerText, 'description') && str_contains($headerText, 'unit')) {
-                $headerRowIndex = 2;
-            }
-        }
-        
-        if (isset($rows[$headerRowIndex]) && is_array($rows[$headerRowIndex])) {
-            foreach ($rows[$headerRowIndex] as $col => $val) {
-                $h = strtolower(trim((string) $val));
-                if (str_contains($h, 'description')) $colMap['description'] = $col;
-                elseif (str_contains($h, 'unit')) $colMap['unit'] = $col;
-                elseif (str_contains($h, 'quantity') || str_contains($h, 'qty')) $colMap['quantity'] = $col;
-                elseif (str_contains($h, 'price')) $colMap['price'] = $col;
-                elseif (str_contains($h, 'category')) $colMap['category'] = $col;
-                elseif (str_contains($h, 'stock id') || $h === 'id' || str_contains($h, 'id_no')) $colMap['id'] = $col;
-            }
-        }
-
-        // Ensure sensible defaults
-        if (!$colMap['description']) $colMap['description'] = 'A';
-        if (!$colMap['quantity']) $colMap['quantity'] = 'B';
-        if (!$colMap['category']) $colMap['category'] = 'C';
-
-        // Aggregate rows so identical items (by Stock ID if provided, else Description+Category) are combined
-        $aggregates = []; // key => [description, unit, categoryName, id_no, quantity]
+        $aggregates = [];
 
         foreach ($rows as $index => $row) {
-            // Skip instruction row (row 1) and header row
-            if ($index === 1 || $index === $headerRowIndex) continue;
-
-            $description = trim((string) ($row[$colMap['description']] ?? ''));
-            $unit = trim((string) ($row[$colMap['unit']] ?? ''));
-            $quantityRaw = trim((string) ($row[$colMap['quantity']] ?? ''));
-            $priceRaw = $colMap['price'] ? trim((string) ($row[$colMap['price']] ?? '')) : '';
-
-            // Extract numeric value from quantity (e.g., "5 pcs" → 5, "5.5 pieces" → 5.5, "5,000" → 5000)
-            $quantityNumeric = null;
-            if (preg_match('/(\d+(?:[.,]\d{3})*(?:[.,]\d+)?)/', str_replace(["\xc2\xa0"], [' '], $quantityRaw), $matches)) {
-                $quantityNumeric = (float) str_replace(',', '.', $matches[1]);
-            }
-
-            // Fallback: if mapped quantity cell contains unit text (e.g. 'pcs'), scan the entire row for the first numeric value
-            if ($quantityNumeric === null) {
-                foreach ($row as $colKey => $cellVal) {
-                    $cell = trim((string) $cellVal);
-                    if ($cell === '') continue;
-                    if (preg_match('/(\d+(?:[.,]\d{3})*(?:[.,]\d+)?)/', str_replace(["\xc2\xa0"], [' '], $cell), $m)) {
-                        $quantityNumeric = (float) str_replace(',', '.', $m[1]);
-
-                        // If the numeric was found in the column that was actually the 'unit' column,
-                        // assume the original mapped quantity cell held the unit text and swap accordingly.
-                        if (isset($colMap['unit']) && $colKey === $colMap['unit']) {
-                            if ($quantityRaw !== '' && !preg_match('/\d/', $quantityRaw)) {
-                                $unit = $quantityRaw;
-                            }
-                        }
-
-                        break;
-                    }
-                }
-            }
-
-            $categoryName = trim((string) ($row[$colMap['category']] ?? ''));
-            $idNo = isset($colMap['id']) && isset($row[$colMap['id']]) ? trim((string) ($row[$colMap['id']] ?? '')) : null;
-            $priceNumeric = null;
-            if ($priceRaw !== '') {
-                if (preg_match('/(\d+(?:[.,]\d{3})*(?:[.,]\d+)?)/', str_replace(["\xc2\xa0"], [' '], $priceRaw), $m)) {
-                    $priceNumeric = (float) str_replace(',', '.', $m[1]);
-                }
-            }
-
-            if ($description === '' && $quantityRaw === '' && $categoryName === '' && empty($idNo)) continue; // empty row
-
-            if ($quantityNumeric === null) {
-                $errors[] = "Row $index: invalid quantity '" . ($row[$colMap['quantity']] ?? '') . "'";
+            if ($index === 1 || $index === $headerRow) {
                 continue;
             }
-            
-            $quantity = (int) $quantityNumeric;
 
-            // Normalize keys: prefer Stock ID when supplied, otherwise normalize by description.
-            $normDesc = strtolower(preg_replace('/\s+/', ' ', trim($description)));
-            $normDescKey = preg_replace('/[^\p{L}\p{N}\s]/u', '', $normDesc); // remove punctuation for key stability
-            if ($idNo !== null && $idNo !== '') {
-                $key = 'ID:' . strtolower(trim($idNo));
-            } else {
-                $key = 'DESC:' . $normDescKey;
+            $description = trim((string) ($row[$columns['description']] ?? ''));
+            $unit = trim((string) ($row[$columns['unit']] ?? 'pcs'));
+            $quantityRaw = trim((string) ($row[$columns['quantity']] ?? ''));
+            $categoryValue = trim((string) ($row[$columns['category']] ?? ''));
+
+            if ($description === '' && $quantityRaw === '' && $categoryValue === '') {
+                continue;
             }
 
-            if (!isset($aggregates[$key])) {
+            $quantity = $this->parseQuantity($quantityRaw);
+
+            if ($quantity === null) {
+                $errors[] = "Row {$index}: invalid quantity '{$quantityRaw}'";
+                continue;
+            }
+
+            $key = 'DESC:' . strtolower(preg_replace('/\s+/', ' ', $description));
+
+            if (! isset($aggregates[$key])) {
                 $aggregates[$key] = [
                     'description' => $description,
-                    'unit' => $unit,
-                    'category' => $categoryName,
-                    'id_no' => $idNo,
+                    'unit' => $unit ?: 'pcs',
+                    'category' => $categoryValue,
                     'quantity' => 0,
-                    'price' => $priceNumeric,
                 ];
-            }
-
-            if ($aggregates[$key]['price'] === null && $priceNumeric !== null) {
-                $aggregates[$key]['price'] = $priceNumeric;
             }
 
             $aggregates[$key]['quantity'] += $quantity;
         }
 
-        // Process aggregates: create/find stocks and create a single inbound per aggregate
-        foreach ($aggregates as $key => $item) {
-            $description = $item['description'];
-            $categoryName = $item['category'];
-            $idNo = $item['id_no'];
-            $quantity = $item['quantity'];
+        DB::transaction(function () use ($aggregates, &$imported, &$createdStocks) {
+            foreach ($aggregates as $item) {
+                $category = $this->resolveCategory($item['category']);
 
-            // Resolve or map category
-            $category = null;
-            if ($categoryName) {
-                $category = \App\Models\Category::whereRaw('LOWER(name) = ?', [strtolower($categoryName)])->first();
-            }
+                $stock = Stock::whereRaw('LOWER(TRIM(description)) = ?', [
+                    strtolower(trim($item['description'])),
+                ])->first();
 
-            if (!$category) {
-                $category = \App\Models\Category::firstOrCreate(['name' => 'Unknown'], ['code' => 'UK']);
-                if (empty($category->code)) {
-                    if (!\App\Models\Category::where('code', 'UK')->exists()) {
-                        $category->code = 'UK';
-                        $category->save();
-                    }
-                }
-            }
+                if (! $stock) {
+                    $stock = Stock::create([
+                        'category_id' => $category->id,
+                        'id_no' => $this->generateStockIdForCategory($category),
+                        'description' => $item['description'] ?: 'Imported item',
+                        'unit' => $item['unit'] ?: 'pcs',
+                        'price' => 0,
+                        'total' => 0,
+                        'stock' => 0,
+                        'hidden' => false,
+                    ]);
 
-            // Find existing stock by Stock ID first, then match by normalized description.
-            $stock = null;
-            if ($idNo) {
-                $stock = Stock::where('id_no', $idNo)->first();
-            }
-
-            if (!$stock && $description !== '') {
-                $searchDesc = strtolower(trim($description));
-                $stock = Stock::whereRaw('LOWER(TRIM(description)) = ?', [$searchDesc])->first();
-            }
-
-            if (!$stock) {
-                // Create new stock with generated or provided id_no
-                if (empty($idNo)) {
-                    $newId = $this->generateStockIdForCategory($category);
+                    $createdStocks++;
                 } else {
-                    // ensure uniqueness: if idNo already exists somehow, fallback
-                    if (Stock::where('id_no', $idNo)->exists()) {
-                        $newId = $this->generateStockIdForCategory($category);
-                    } else {
-                        $newId = $idNo;
-                    }
+                    $stock->update([
+                        'category_id' => $category->id,
+                        'unit' => $stock->unit ?: ($item['unit'] ?: 'pcs'),
+                    ]);
                 }
 
-                $stock = Stock::create([
-                    'category_id' => $category->id,
-                    'id_no' => $newId,
-                    'description' => $description ?: 'Imported item',
-                    'unit' => $item['unit'] ?? 'pcs',
-                    'price' => $item['price'] ?? 0,
-                    'total' => 0,
-                    'stock' => 0,
-                    'hidden' => false,
-                ]);
-                $createdStocks++;
+                if ($item['quantity'] > 0) {
+                    Inbound::create([
+                        'stock_id' => $stock->id,
+                        'total' => $item['quantity'],
+                    ]);
+
+                    $stock->increment('total', $item['quantity']);
+                    $stock->increment('stock', $item['quantity']);
+
+                    $imported++;
+                }
             }
+        });
 
-            if ($quantity > 0) {
-                Inbound::create(['stock_id' => $stock->id, 'total' => $quantity]);
-                $stock->increment('total', $quantity);
-                $stock->increment('stock', $quantity);
-                $imported++;
-            } else {
-                // Still save stock changes if any, but don't create inbound record for zero quantity
-                $stock->save();
-            }
+        $message = "Imported: {$imported}";
+
+        if ($createdStocks > 0) {
+            $message .= ", Stocks created: {$createdStocks}";
         }
 
-        $msg = "Imported: $imported";
-        if ($createdStocks) $msg .= ", Stocks created: $createdStocks";
-        if (count($errors)) $msg .= ", Errors: " . implode('; ', array_slice($errors, 0, 5));
+        if (count($errors) > 0) {
+            $message .= ', Errors: ' . implode('; ', array_slice($errors, 0, 5));
+        }
 
-        return back()->with('success', $msg);
+        return back()->with('success', $message);
     }
 
-    // Generate a 2-letter unique category code (tries sensible fallbacks)
-    private function generateCategoryCode(string $name): string
+    public function showInboundAllocations(Inbound $inbound)
     {
-        $clean = preg_replace('/[^A-Za-z]/', '', strtoupper($name));
-        $base = str_pad(substr($clean, 0, 2), 2, 'X');
-
-        // If base is available, use it; otherwise try variations
-        if (!\App\Models\Category::where('code', $base)->exists()) {
-            return $base;
-        }
-
-        $letters = range('A', 'Z');
-        // try firstChar + A..Z
-        foreach ($letters as $l) {
-            $try = $base[0] . $l;
-            if (!\App\Models\Category::where('code', $try)->exists()) return $try;
-        }
-
-        // try A..Z + secondChar
-        foreach ($letters as $l) {
-            $try = $l . $base[1];
-            if (!\App\Models\Category::where('code', $try)->exists()) return $try;
-        }
-
-        // fallback — deterministic but unlikely to collide
-        return strtoupper(substr(md5($name . time()), 0, 2));
+        $allocations = $inbound->allocations;
+        $allocationsMap = $allocations->map(function ($item) {
+            return [
+                'office_name' => $item->office->office ?? 'Unknown',
+                'allocation' => $item->allocation,
+                // 'created_at' => $item->created_at->toDateTimeString(),
+            ];
+        });
+        $data = [
+            'inbound_id' => $inbound->id,
+            'stock_description' => $inbound->stock->description,
+            'total' => $inbound->total,
+            'created_at' => \Carbon\Carbon::parse($inbound->created_at)->format('F j, Y'),
+            'allocations' => $allocationsMap,
+        ];
+        return response()->json($data);
     }
 
-    // Generate next stock id_no for a category (re-uses stock id automation)
-    private function generateStockIdForCategory(\App\Models\Category $category): string
-    {
-        $lastStock = Stock::where('id_no', 'like', $category->code . '-%')
-            ->orderBy('id_no', 'desc')
-            ->first();
-
-        if ($lastStock) {
-            $lastNumber = (int) explode('-', $lastStock->id_no)[1];
-            $nextNumber = $lastNumber + 1;
-        } else {
-            $nextNumber = 1;
-        }
-
-        return $category->code . '-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * Show a single inbound record. (Resource route expects this.)
-     * Currently redirects to index — create a dedicated view if you want a detail page.
-     */
     public function show(Inbound $inbound)
     {
         return redirect()->route('inbound.index');
     }
 
-    /**
-     * API endpoint to get stock suggestions for autocomplete.
-     * Filters stocks by description (case-insensitive partial match).
-     * Returns JSON array of {id, description, id_no, unit, category_name}
-     */
     public function suggestions(Request $request)
     {
-        $query = $request->input('q', '');
-        
-        if (strlen(trim($query)) < 1) {
+        $query = trim($request->input('q', ''));
+
+        if ($query === '') {
             return response()->json([]);
         }
 
@@ -566,18 +387,198 @@ class InboundController extends Controller
             ->orderBy('description')
             ->limit(10)
             ->get()
-            ->map(function($stock) {
-                return [
-                    'id' => $stock->id,
-                    'description' => $stock->description,
-                    'id_no' => $stock->id_no,
-                    'unit' => $stock->unit ?? 'pcs',
-                    'category_name' => optional($stock->category)->name ?? 'Unknown',
-                ];
-            });
+            ->map(fn($stock) => [
+                'id' => $stock->id,
+                'description' => $stock->description,
+                'id_no' => $stock->id_no,
+                'unit' => $stock->unit ?? 'pcs',
+                'category_name' => optional($stock->category)->name ?? 'Unknown',
+                'category_code' => optional($stock->category)->code ?? 'UK',
+            ]);
 
         return response()->json($stocks);
     }
+
+    private function inboundQuery(Request $request)
+    {
+        $query = DB::table('inbounds')
+            ->join('stocks', 'inbounds.stock_id', '=', 'stocks.id')
+            ->leftJoin('categories', 'stocks.category_id', '=', 'categories.id')
+            ->select(
+                'stocks.id_no',
+                'stocks.description',
+                'stocks.unit',
+                'inbounds.total',
+                'categories.name as category_name',
+                'categories.code as category_code',
+                'inbounds.created_at'
+            );
+
+        if ($request->query('date_from')) {
+            $query->whereDate('inbounds.created_at', '>=', $request->query('date_from'));
+        }
+
+        if ($request->query('date_to')) {
+            $query->whereDate('inbounds.created_at', '<=', $request->query('date_to'));
+        }
+
+        return $query;
+    }
+
+    private function readImportRows(Request $request): array
+    {
+        $path = $request->file('file')->getPathname();
+        $ext = strtolower($request->file('file')->getClientOriginalExtension());
+
+        if (in_array($ext, ['xlsx', 'xls'])) {
+            $spreadsheet = IOFactory::load($path);
+
+            return $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+        }
+
+        $rows = [];
+        $handle = fopen($path, 'r');
+
+        if (! $handle) {
+            return $rows;
+        }
+
+        $index = 0;
+
+        while (($data = fgetcsv($handle)) !== false) {
+            $index++;
+
+            if (isset($data[0]) && str_starts_with(trim($data[0]), '#')) {
+                continue;
+            }
+
+            $rows[$index] = [
+                'A' => $data[0] ?? null,
+                'B' => $data[1] ?? null,
+                'C' => $data[2] ?? null,
+                'D' => $data[3] ?? null,
+            ];
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function detectHeaderRow(array $rows): int
+    {
+        foreach ([1, 2] as $index) {
+            $text = strtolower(implode('|', array_map('strval', $rows[$index] ?? [])));
+
+            if (str_contains($text, 'description') && str_contains($text, 'quantity')) {
+                return $index;
+            }
+        }
+
+        return 1;
+    }
+
+    private function mapColumns(array $header): array
+    {
+        $columns = [
+            'description' => 'A',
+            'unit' => 'B',
+            'quantity' => 'C',
+            'category' => 'D',
+        ];
+
+        foreach ($header as $column => $value) {
+            $heading = strtolower(trim((string) $value));
+
+            if (str_contains($heading, 'description')) {
+                $columns['description'] = $column;
+            } elseif (str_contains($heading, 'unit')) {
+                $columns['unit'] = $column;
+            } elseif (str_contains($heading, 'quantity') || str_contains($heading, 'qty')) {
+                $columns['quantity'] = $column;
+            } elseif (str_contains($heading, 'category')) {
+                $columns['category'] = $column;
+            }
+        }
+
+        return $columns;
+    }
+
+    private function parseQuantity(string $value): ?int
+    {
+        $value = str_replace(["\xc2\xa0", ','], [' ', ''], $value);
+
+        if (! preg_match('/\d+/', $value, $match)) {
+            return null;
+        }
+
+        return (int) $match[0];
+    }
+
+    private function resolveCategory(?string $value): Category
+    {
+        $name = trim((string) $value);
+
+        if ($name === '') {
+            $name = 'Unknown';
+        }
+
+        $category = Category::whereRaw('LOWER(TRIM(name)) = ?', [
+            strtolower($name),
+        ])->first();
+
+        if ($category) {
+            return $category;
+        }
+
+        return Category::create([
+            'name' => $name,
+            'code' => $this->generateCategoryCode($name),
+        ]);
+    }
+
+    private function generateCategoryCode(string $name): string
+    {
+        $clean = preg_replace('/[^A-Za-z]/', '', strtoupper($name));
+        $base = str_pad(substr($clean, 0, 2), 2, 'X');
+
+        if (! Category::where('code', $base)->exists()) {
+            return $base;
+        }
+
+        foreach (range('A', 'Z') as $letter) {
+            $try = $base[0] . $letter;
+
+            if (! Category::where('code', $try)->exists()) {
+                return $try;
+            }
+        }
+
+        foreach (range('A', 'Z') as $letter) {
+            $try = $letter . $base[1];
+
+            if (! Category::where('code', $try)->exists()) {
+                return $try;
+            }
+        }
+
+        return strtoupper(substr(md5($name . time()), 0, 2));
+    }
+
+    private function generateStockIdForCategory(Category $category): string
+    {
+        $code = $category->code ?: 'UK';
+
+        $lastStock = Stock::where('id_no', 'like', $code . '-%')
+            ->orderByDesc('id_no')
+            ->first();
+
+        $nextNumber = 1;
+
+        if ($lastStock && str_contains($lastStock->id_no, '-')) {
+            $nextNumber = ((int) explode('-', $lastStock->id_no)[1]) + 1;
+        }
+
+        return $code . '-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+    }
 }
-
-

@@ -33,7 +33,7 @@
         font-weight:700;
         transition: all 0.3s ease;
     }
-    .btn:hover{ 
+    .btn:hover{
         opacity:.92;
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(37,99,235,.2);
@@ -51,7 +51,7 @@
         font-weight:700;
         transition: all 0.3s ease;
     }
-    .btn-ghost:hover{ 
+    .btn-ghost:hover{
         background:#f8fafc;
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(0,0,0,.08);
@@ -70,8 +70,8 @@
         font-weight:700;
         transition: all 0.3s ease;
     }
-    .btn-cancel:hover{ 
-        background:#b91c1c; 
+    .btn-cancel:hover{
+        background:#b91c1c;
         color:#fff;
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(220,38,38,.2);
@@ -174,7 +174,7 @@
         min-height: 500px; /* Ensure enough height for all content */
         text-align: center; /* Center the table in cart container */
     }
-    
+
     /* show cart toggle button on mobile */
     @media (max-width: 640px){
         .cart-toggle{ display:flex !important; }
@@ -224,14 +224,14 @@
         transition: all 0.3s ease;
         background: #ffffff;
     }
-    input:focus, select:focus{ 
-        border-color:#6366f1; 
+    input:focus, select:focus{
+        border-color:#6366f1;
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         transform: translateY(-1px);
     }
     .muted{ color:#64748b; font-size:13px; font-weight: 500; }
 
-    .cart{ 
+    .cart{
         border:2px solid #e2e8f0;
         border-radius:16px;
         overflow:hidden;
@@ -280,7 +280,7 @@
         height: 1px;
         background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
     }
-    .cart-body{ 
+    .cart-body{
         padding:18px;
         min-height: 200px;
         display: flex;
@@ -338,20 +338,20 @@
         outline: none;
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
     }
-    
+
     .modal-btn-cancel, .modal-btn-confirm {
-        padding:12px 20px; 
-        border-radius:12px; 
-        border:none; 
-        font-weight:700; 
-        cursor:pointer; 
+        padding:12px 20px;
+        border-radius:12px;
+        border:none;
+        font-weight:700;
+        cursor:pointer;
         font-size:14px;
         transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         position: relative;
         overflow: hidden;
     }
     .modal-btn-cancel {
-        background: linear-gradient(135deg, #94a3b8, #6b7280); 
+        background: linear-gradient(135deg, #94a3b8, #6b7280);
         color:#ffffff;
         box-shadow: 0 4px 12px rgba(107, 114, 128, 0.2);
     }
@@ -364,7 +364,7 @@
         transform: translateY(0) scale(0.98);
     }
     .modal-btn-confirm {
-        background: linear-gradient(135deg, #6366f1, #4f46e5); 
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
         color:#ffffff;
         box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
     }
@@ -376,20 +376,20 @@
     .modal-btn-confirm:active {
         transform: translateY(0) scale(0.98);
     }
-    
+
     /* Animations */
     @keyframes modalFadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
     }
     @keyframes modalSlideIn {
-        from { 
-            opacity: 0; 
-            transform: translateY(30px) scale(0.95); 
+        from {
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
         }
-        to { 
-            opacity: 1; 
-            transform: translateY(0) scale(1); 
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
         }
     }
     @keyframes shimmer {
@@ -424,9 +424,9 @@
                 <td>{{ $s->unit }}</td>
                 <td>
                     @if($s->stock >= 50)
-                        <span class="pill ok">Available</span>
+                        <span class="pill ok">{{ $s->stock }}</span>
                     @else
-                        <span class="pill low">Available</span>
+                        <span class="pill low">{{ $s->stock }}</span>
                     @endif
                 </td>
             </tr>
@@ -454,9 +454,9 @@
             <div style="flex:1;">
                 <div class="modal-title">Create Request (Multiple Items)</div>
                 <div style="color: rgba(255,255,255,0.9); font-size: 14px; font-weight: 500; margin-top: 4px;">Search items, add to list, set quantities, then submit. <button class="btn-ghost" type="button" onclick="closeReqModal()" style="position:absolute; top:14px; right:16px; background:none; border:none; color:#ffffff; font-size:18px; padding:0; width:24px; height:24px; display:flex; align-items:center; justify-content:center;">×</button></div>
-                 
+
             </div>
-           
+
         </div>
 
         <form method="POST" action="{{ route('client.requests.store') }}">
@@ -615,7 +615,7 @@ function renderStockList(){
         const btnDisabled = cart[s.id] ? 'disabled' : '';
         const tr = document.createElement('tr');
         // show availability level only (no numeric count)
-        const stockBadge = s.stock >= 50 ? `<span class="pill ok">Available</span>` : `<span class="pill low">Available</span>`;
+        const stockBadge = s.stock >= 50 ? `<span class="pill ok">${s.stock}</span>` : `<span class="pill low">${s.stock}</span>`;
         tr.innerHTML = `
             <td><b>${escapeHtml(s.id_no)}</b></td>
             <td>${escapeHtml(s.description)}</td>
@@ -645,7 +645,7 @@ function removeFromCart(stockId){
 function updateQty(stockId, max){
     let v = parseInt(document.getElementById('qty_'+stockId).value || '1', 10);
     if (isNaN(v) || v < 1) v = 1;
-    if (v > max) v = max;
+    // if (v > max) v = max;
     cart[stockId] = v;
     document.getElementById('qty_'+stockId).value = v;
     renderCart();
@@ -673,7 +673,7 @@ function renderCart(){
     // Create table for cart items
     const table = document.createElement('table');
     table.style.cssText = 'width: 100%; border-collapse: collapse; margin-bottom:16px; margin-right: 20px;';
-    
+
     // Create table header
     const thead = document.createElement('thead');
     thead.innerHTML = `
@@ -684,13 +684,14 @@ function renderCart(){
             <th style="padding: 8px 12px; border: 1px solid #e2e8f0; background: #f8fafc; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Qty</th>
                     </tr>
     `;
-    
+
     const tbody = document.createElement('tbody');
     let grandTotal = 0;
 
     keys.forEach(k => {
         const stockId = parseInt(k, 10);
         const s = STOCKS.find(x => x.id === stockId);
+
         if (!s) return;
 
         const qty = cart[stockId];
@@ -703,8 +704,8 @@ function renderCart(){
             <td style="padding: 10px 12px; border: 1px solid #e2e8f0; color: #475569; font-size: 12px;">${escapeHtml(s.description)}</td>
             <td style="padding: 10px 12px; border: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">${escapeHtml(s.unit)}</td>
             <td style="padding: 10px 12px; border: 1px solid #e2e8f0; text-align: center;">
-                <input class="qty" id="qty_${stockId}" type="number" min="1" max="${s.stock}"
-                       value="${qty}" onchange="updateQty(${stockId}, ${s.stock})" 
+                <input class="qty" id="qty_${stockId}" type="number" min="1"
+                       value="${qty}" onchange="updateQty(${stockId}, ${s.stock})"
                        style="width: 60px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 4px; text-align: center;">
             </td>
                                 `;

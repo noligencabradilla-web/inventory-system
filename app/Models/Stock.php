@@ -30,6 +30,19 @@ class Stock extends Model
 
     public function requests()
     {
-        return $this->hasMany(Request::class);
+        return $this->hasMany(StockRequest::class);
+    }
+
+    /**
+     * will serves as the history for the allocation
+     */
+    public function inbound_allocations(){
+        return $this->hasMany(InboundAllocation::class);
+    }
+    /**
+     * will be the moving qty b4 proceeding to outbounds
+     */
+    public function stock_allocations(){
+        return $this->hasMany(StockAllocation::class);
     }
 }
