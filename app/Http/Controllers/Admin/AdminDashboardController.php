@@ -421,7 +421,7 @@ class AdminDashboardController extends Controller
                 ->map(function($member) {
                     // Regular distributions
                     $distributedQty = $member->distributions->sum('distributed_qty');
-                    $usedQty = \Illuminate\Support\Facades\Schema::hasColumn('client_member_distributions', 'used_qty') 
+                    $usedQty = Schema::hasColumn('client_member_distributions', 'used_qty') 
                         ? $member->distributions->sum('used_qty') 
                         : 0;
                     
@@ -581,7 +581,7 @@ class AdminDashboardController extends Controller
         
         // Low stock alerts
         $lowThreshold = 49;
-        $lowStock = \App\Models\Stock::where('stock','>',0)->where('stock','<=',$lowThreshold)->get();
+        $lowStock = Stock::where('stock','>',0)->where('stock','<=',$lowThreshold)->get();
 
         foreach ($lowStock as $stock) {
             $notificationId = 'low_' . $stock->id;
@@ -601,7 +601,7 @@ class AdminDashboardController extends Controller
         }
 
         // Out of stock alerts
-        $outStock = \App\Models\Stock::where('stock','<=',0)->get();
+        $outStock = Stock::where('stock','<=',0)->get();
 
         foreach ($outStock as $stock) {
             $notificationId = 'out_' . $stock->id;
@@ -663,10 +663,10 @@ class AdminDashboardController extends Controller
         $notifications = collect();
         
         $expiringItems = collect();
-        if (\Illuminate\Support\Facades\Schema::hasColumn('stocks', 'expiry_date')) {
-            $sevenDaysFromNow = \Carbon\Carbon::now()->addDays(7);
-            $expiringItems = \App\Models\Stock::where('expiry_date', '<=', $sevenDaysFromNow)
-                ->where('expiry_date', '>', \Carbon\Carbon::now())
+        if (Schema::hasColumn('stocks', 'expiry_date')) {
+            $sevenDaysFromNow = Carbon::now()->addDays(7);
+            $expiringItems = Stock::where('expiry_date', '<=', $sevenDaysFromNow)
+                ->where('expiry_date', '>', Carbon::now())
                 ->where('stock', '>', 0)
                 ->get();
         }
@@ -699,8 +699,8 @@ class AdminDashboardController extends Controller
     {
         $notifications = collect();
         
-        $recentClients = \App\Models\User::where('role', 'client')
-            ->where('created_at', '>=', \Carbon\Carbon::now()->subHours(24))
+        $recentClients = User::where('role', 'client')
+            ->where('created_at', '>=', Carbon::now()->subHours(24))
             ->get();
 
         foreach ($recentClients as $client) {
