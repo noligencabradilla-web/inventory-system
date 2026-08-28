@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\NotificationPreferenceController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\AllocationController;
 use App\Http\Controllers\Admin\AdminSummaryController;
+use App\Http\Controllers\Admin\AdminNotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -144,7 +145,7 @@ Route::prefix('admin')
             ->name('requests.index');
 
         // Admin notifications page
-        Route::get('/notifications', [AdminDashboardController::class, 'notifications'])
+        Route::get('/notifications', [AdminNotificationController::class, 'notifications'])
             ->name('admin.notifications');
 
         // Notification preferences
@@ -156,9 +157,9 @@ Route::prefix('admin')
             ->name('admin.notifications.counts');
 
         // Notification actions
-        Route::post('/notifications/{id}/read', [AdminDashboardController::class, 'markNotificationAsRead'])
+        Route::post('/notifications/{id}/read', [AdminNotificationController::class, 'markNotificationAsRead'])
             ->name('admin.notifications.read');
-        Route::post('/notifications/read-all', [AdminDashboardController::class, 'markAllNotificationsAsRead'])
+        Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllNotificationsAsRead'])
             ->name('admin.notifications.readAll');
 
         // ✅ ALIAS name (so route('admin.requests') also works)
