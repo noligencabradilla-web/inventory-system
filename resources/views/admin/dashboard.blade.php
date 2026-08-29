@@ -1,8 +1,93 @@
 @extends('layouts.app')
 
 @php
-  $brand = 'Inventory System';
-  $pageTitle = 'Admin Panel';
+    $brand = 'Inventory System';
+    $pageTitle = 'Admin Panel';
+
+    $quickLinks = [
+        [
+            'title' => 'Stocks',
+            'url' => url('/admin/stocks'),
+            'badge' => null,
+        ],
+        [
+            'title' => 'Requests',
+            'url' => url('/admin/requests'),
+            'badge' => $pendingRequests ?? 0,
+        ],
+        [
+            'title' => 'Password Reset',
+            'url' => url('/admin/password-reset'),
+            'badge' => $pendingPasswordResets ?? 0,
+        ],
+    ];
+
+    $chartCards = [
+        [
+            'type' => 'category',
+            'id' => 'categoryCard',
+            'canvas' => 'categoryChart',
+            'loading' => 'categoryLoading',
+            'title' => 'Category Analytics',
+            'subtitle' => 'Stock availability vs. approved requests by category',
+            'icon' => '📊',
+            'summary' => null,
+        ],
+        [
+            'type' => 'office',
+            'id' => 'officeCard',
+            'canvas' => 'officeChart',
+            'loading' => 'officeLoading',
+            'title' => 'Requests by Office',
+            'subtitle' => 'Which offices submit the most requests',
+            'icon' => '🏢',
+            'summary' => 'officeTop',
+        ],
+        [
+            'type' => 'items',
+            'id' => 'itemsCard',
+            'canvas' => 'itemsChart',
+            'loading' => 'itemsLoading',
+            'title' => 'Most Requested Items',
+            'subtitle' => 'Top 10 items by number of request lines',
+            'icon' => '🔥',
+            'summary' => 'itemsTop',
+        ],
+        [
+            'type' => 'lowStock',
+            'id' => 'lowStockCard',
+            'canvas' => 'lowStockChart',
+            'loading' => 'lowStockLoading',
+            'title' => 'Low Stock Items',
+            'subtitle' => 'Categories with items at or below the low-stock threshold',
+            'icon' => '⚠️',
+            'summary' => 'lowStockTop',
+        ],
+        [
+            'type' => 'outStock',
+            'id' => 'outStockCard',
+            'canvas' => 'outStockChart',
+            'loading' => 'outStockLoading',
+            'title' => 'Out of Stock Items',
+            'subtitle' => 'Zero-balance items grouped by category',
+            'icon' => '🚫',
+            'summary' => 'outStockTop',
+        ],
+    ];
+
+    $dashboardChartData = [
+        'chartEndpoint' => url('/admin/dashboard/chart-data'),
+        'categories' => $categoryAnalytics ?? [],
+        'offices' => $officeAnalytics ?? [],
+        'items' => $itemAnalytics ?? [],
+        'lowStock' => $lowStockAnalytics ?? [],
+        'outStock' => $outStockAnalytics ?? [],
+        'monthlyConsumption' => $monthlyConsumptionAnalytics ?? [],
+        'stockMovement' => $stockMovementAnalytics ?? [],
+        'fastMoving' => $fastMovingAnalytics ?? [],
+        'officeQuantity' => $officeQuantityAnalytics ?? [],
+        'pendingAging' => $pendingAgingAnalytics ?? [],
+    ];
 @endphp
 
 @section('sidebar')
@@ -10,792 +95,1116 @@
 @endsection
 
 @section('content')
-    <h2 style="margin:0 0 10px;">Welcome, {{ auth()->user()->name }}</h2>
+    <h2 class="page-heading">Welcome, {{ auth()->user()->name }}</h2>
 
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:12px; margin-top:14px;">
-        <div style="padding:14px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.02);">
-            <div style="color:#9ca3af; font-size:12px;">Quick Access</div>
-            <div style="font-weight:700; margin-top:6px;">Stocks</div>
-            <a href="/admin/stocks" style="display:inline-block; margin-top:10px; color:#22c55e; text-decoration:none;">Open →</a>
-        </div>
+    <div class="quick-grid">
+        @foreach ($quickLinks as $quickLink)
+            <div class="quick-card">
+                <div class="eyebrow">Quick Access</div>
 
-        <div style="padding:14px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.02); position:relative;">
-            <div style="color:#9ca3af; font-size:12px;">Quick Access</div>
-            <div style="font-weight:700; margin-top:6px; display:flex; align-items:center; gap:8px;">
-                Requests
-                @if($pendingRequests > 0)
-                    <span style="display:inline-block; background:#ef4444; color:white; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; min-width:24px; text-align:center;">
-                        {{ $pendingRequests }}
-                    </span>
-                @endif
+                <div class="quick-title">
+                    <span>{{ $quickLink['title'] }}</span>
+
+                    @if (!empty($quickLink['badge']) && $quickLink['badge'] > 0)
+                        <span class="badge">{{ $quickLink['badge'] }}</span>
+                    @endif
+                </div>
+
+                <a href="{{ $quickLink['url'] }}" class="quick-link">Open →</a>
             </div>
-            <a href="/admin/requests" style="display:inline-block; margin-top:10px; color:#22c55e; text-decoration:none;">Open →</a>
-        </div>
-
-        <div style="padding:14px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.02);">
-            <div style="color:#9ca3af; font-size:12px;">Quick Access</div>
-            <div style="font-weight:700; margin-top:6px; display:flex; align-items:center; gap:8px;">
-                Password Reset
-                @if($pendingPasswordResets > 0)
-                    <span style="display:inline-block; background:#ef4444; color:white; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; min-width:24px; text-align:center;">
-                        {{ $pendingPasswordResets }}
-                    </span>
-                @endif
-            </div>
-            <a href="/admin/password-reset" style="display:inline-block; margin-top:10px; color:#22c55e; text-decoration:none;">Open →</a>
-        </div>
+        @endforeach
     </div>
 
     <style>
-        /* Enhanced charts grid: 3 columns for better layout */
-        .charts-grid{
-            margin-top:32px;
-            display:grid;
+        .page-heading { margin: 0 0 10px; }
+
+        .quick-grid,
+        .charts-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .quick-grid {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            margin-top: 14px;
+        }
+
+        .quick-card,
+        .chart-card {
+            border: 1px solid rgba(255, 255, 255, .08);
+            background: rgba(255, 255, 255, .02);
+        }
+
+        .quick-card {
+            padding: 14px;
+            border-radius: 14px;
+        }
+
+        .eyebrow {
+            color: #9ca3af;
+            font-size: 12px;
+        }
+
+        .quick-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+            font-weight: 700;
+        }
+
+        .badge {
+            display: inline-block;
+            min-width: 24px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .quick-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #22c55e;
+            text-decoration: none;
+        }
+
+        .charts-grid {
             grid-template-columns: repeat(3, 1fr);
-            gap:20px;
-            align-items:start;
-        }
-        @media (max-width:1200px){ .charts-grid{ grid-template-columns: 1fr 1fr; } }
-        @media (max-width:900px){ .charts-grid{ grid-template-columns: 1fr; } }
-        
-        .chart-card{
-            padding:20px;
-            border:1px solid rgba(255,255,255,.08);
-            border-radius:16px;
-            background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-            transition:transform .2s ease, box-shadow .2s ease;
-            cursor:pointer;
-            position:relative;
-            overflow:hidden;
-        }
-        .chart-card:hover{ 
-            transform: translateY(-6px); 
-            box-shadow:0 20px 40px rgba(59,130,246,0.15); 
-            border-color: rgba(59,130,246,0.3);
-        }
-        .chart-card::before{
-            content:'';
-            position:absolute;
-            top:0;
-            left:0;
-            right:0;
-            height:3px;
-            background:linear-gradient(90deg, #3b82f6, #8b5cf6);
+            align-items: start;
+            gap: 20px;
+            margin-top: 32px;
         }
 
-        .chart-header{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
-        .chart-title{ font-weight:800; color:#000; margin:0; font-size:18px; }
-        .chart-sub{ color:#9ca3af; font-size:13px; margin:0; }
-        .chart-icon{ font-size:24px; opacity:0.8; }
+        @media (max-width: 1200px) {
+            .charts-grid { grid-template-columns: repeat(2, 1fr); }
+        }
 
-        /* fullscreen modal for charts */
-        .chart-modal{
-            position:fixed;
-            top:0; left:0; width:100vw; height:100vh;
-            background:rgba(0,0,0,0.7);
+        @media (max-width: 900px) {
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        .chart-card {
+            position: relative;
+            overflow: hidden;
+            padding: 20px;
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, .01));
+            cursor: pointer;
+            transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+        }
+
+        .chart-card:hover {
+            border-color: rgba(59, 130, 246, .3);
+            box-shadow: 0 20px 40px rgba(59, 130, 246, .15);
+            transform: translateY(-6px);
+        }
+
+        .chart-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .chart-title {
+            margin: 0;
+            color: #000;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .chart-sub {
+            margin: 0;
+            color: #9ca3af;
+            font-size: 13px;
+        }
+
+        .chart-icon {
+            font-size: 24px;
+            opacity: .8;
+        }
+
+        .chart-body {
+            position: relative;
+            width: 100%;
+            height: 320px;
+        }
+
+        .chart-summary {
+            margin-top: 12px;
+            color: #9ca3af;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .summary-main { color: #000; }
+        .summary-sub { color: #9ca3af; font-size: 11px; }
+
+        .chart-loading-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, .9);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity .3s ease, visibility .3s ease;
+        }
+
+        .chart-loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f4f6;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+            transform: translateX(-50%);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .chart-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: auto;
+            background: rgba(0, 0, 0, .7);
             backdrop-filter: blur(8px);
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            padding:20px;
-            z-index:1000;
-            overflow:auto;
-        }
-        .chart-modal.hidden{ display:none; }
-        .chart-modal .modal-content{
-            position:relative;
-            width:95vw;
-            max-width:1400px;
-            max-height:90vh;
-            background:#fff;
-            border-radius:16px;
-            padding:24px;
-            box-shadow:0 25px 50px rgba(0,0,0,.3);
-            overflow:auto;
-        }
-        .chart-modal .modal-content canvas{
-            width:100% !important;
-            height:70vh !important;
-        }
-        .chart-modal .close-btn{
-            position:absolute;
-            top:16px;
-            right:16px;
-            background:#f3f4f6;
-            border:none;
-            border-radius:50%;
-            width:40px;
-            height:40px;
-            font-size:20px;
-            line-height:0;
-            cursor:pointer;
-            transition:all 0.2s ease;
-        }
-        .chart-modal .close-btn:hover{
-            background:#e5e7eb;
-            transform:scale(1.1);
         }
 
-        /* Loading spinner styles */
-        .chart-loading-overlay{
-            position:absolute;
-            top:0;
-            left:0;
-            width:100%;
-            height:100%;
-            background:rgba(255,255,255,0.9);
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            z-index:10;
-            border-radius:16px;
-            opacity:0;
-            visibility:hidden;
-            transition:opacity 0.3s ease, visibility 0.3s ease;
+        .chart-modal.hidden { display: none; }
+
+        .modal-content {
+            position: relative;
+            width: 95vw;
+            max-width: 1400px;
+            max-height: 90vh;
+            padding: 24px;
+            overflow: auto;
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, .3);
         }
-        .chart-loading-overlay.active{
-            opacity:1;
-            visibility:visible;
+
+        .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 40px;
+            height: 40px;
+            border: 0;
+            border-radius: 50%;
+            background: #f3f4f6;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 0;
+            transition: transform .2s ease, background .2s ease;
         }
-        .spinner{
-            width:40px;
-            height:40px;
-            border:4px solid #f3f4f6;
-            border-top:4px solid #3b82f6;
-            border-radius:50%;
-            animation:spin 1s linear infinite;
+
+        .close-btn:hover {
+            background: #e5e7eb;
+            transform: scale(1.1);
         }
-        @keyframes spin{
-            0%{ transform:rotate(0deg); }
-            100%{ transform:rotate(360deg); }
+
+        .modal-controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e7eb;
         }
-        .loading-text{
-            position:absolute;
-            bottom:20px;
-            left:50%;
-            transform:translateX(-50%);
-            color:#6b7280;
-            font-size:14px;
-            font-weight:500;
+
+        .modal-label {
+            margin: 0;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .modal-input {
+            min-width: 140px;
+            padding: 6px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .modal-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .modal-btn-primary {
+            border: 1px solid #3b82f6;
+            background: #3b82f6;
+            color: #fff;
+        }
+
+        .modal-btn-secondary {
+            border: 1px solid #6b7280;
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .modal-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            z-index: 2;
+            display: none;
+            color: #6b7280;
+            font-size: 18px;
+            text-align: center;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+        }
+
+        .modal-message.active { display: block; }
+        .modal-chart-wrapper { overflow-x: auto; }
+
+        #modalChart {
+            width: 100%;
+            height: 70vh;
         }
     </style>
 
     <div class="charts-grid" id="chartsGrid">
-        <!-- Category Analytics Chart -->
-        <div class="chart-card" id="categoryCard">
-            <div class="chart-header">
-                <div>
-                    <h3 class="chart-title">Category Analytics</h3>
-                    <div class="chart-sub">Stock availability vs. approved requests by category</div>
+        @foreach ($chartCards as $chart)
+            <div class="chart-card" id="{{ $chart['id'] }}" data-chart-type="{{ $chart['type'] }}">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title">{{ $chart['title'] }}</h3>
+                        <div class="chart-sub">{{ $chart['subtitle'] }}</div>
+                    </div>
+                    <div class="chart-icon">{{ $chart['icon'] }}</div>
                 </div>
-                <div class="chart-icon">📊</div>
-            </div>
-            <div style="position:relative; height:320px;">
-                <canvas id="categoryChart"></canvas>
-                <div class="chart-loading-overlay" id="categoryLoading">
-                    <div class="spinner"></div>
-                    <div class="loading-text">Loading data...</div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Requests by Office Chart -->
-        <div class="chart-card" id="officeCard">
-            <div class="chart-header">
-                <div>
-                    <h3 class="chart-title">Requests by Office</h3>
-                    <div class="chart-sub">Which offices submit the most requests</div>
+                <div class="chart-body">
+                    <canvas id="{{ $chart['canvas'] }}"></canvas>
+                    <div class="chart-loading-overlay" id="{{ $chart['loading'] }}">
+                        <div class="spinner"></div>
+                        <div class="loading-text">Loading data...</div>
+                    </div>
                 </div>
-                <div class="chart-icon">🏢</div>
-            </div>
-            <div style="position:relative; height:320px; width:100%;">
-                <canvas id="officeChart"></canvas>
-                <div class="chart-loading-overlay" id="officeLoading">
-                    <div class="spinner"></div>
-                    <div class="loading-text">Loading data...</div>
-                </div>
-            </div>
-            <div id="officeTop" style="margin-top:12px; color:#9ca3af; font-size:13px; text-align:center;"></div>
-        </div>
 
-        <!-- Most Requested Items Chart -->
-        <div class="chart-card" id="itemsCard">
-            <div class="chart-header">
-                <div>
-                    <h3 class="chart-title">Most Requested Items</h3>
-                    <div class="chart-sub">Top 10 most requested inventory items</div>
-                </div>
-                <div class="chart-icon">🔥</div>
+                @if (!empty($chart['summary']))
+                    <div id="{{ $chart['summary'] }}" class="chart-summary"></div>
+                @endif
             </div>
-            <div style="position:relative; height:320px; width:100%;">
-                <canvas id="itemsChart"></canvas>
-                <div class="chart-loading-overlay" id="itemsLoading">
-                    <div class="spinner"></div>
-                    <div class="loading-text">Loading data...</div>
-                </div>
+        @endforeach
+    </div>
+
+    <div id="chartModal" class="chart-modal hidden" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-label="Chart details">
+            <button id="closeModal" class="close-btn" type="button" aria-label="Close modal">&times;</button>
+
+            <div class="modal-controls">
+                <label for="startDateModal" class="modal-label">Start Date:</label>
+                <input type="date" id="startDateModal" class="modal-input">
+
+                <label for="endDateModal" class="modal-label">End Date:</label>
+                <input type="date" id="endDateModal" class="modal-input">
+
+                <button id="applyModalFilter" type="button" class="modal-btn modal-btn-primary">Apply</button>
+                <button id="resetModalFilter" type="button" class="modal-btn modal-btn-secondary">Reset</button>
             </div>
-            <div id="itemsTop" style="margin-top:12px; color:#9ca3af; font-size:13px; text-align:center;"></div>
+
+            <div id="modalMessage" class="modal-message">No data for selected date range</div>
+
+            <div id="modalChartWrapper" class="modal-chart-wrapper">
+                <canvas id="modalChart"></canvas>
+            </div>
         </div>
     </div>
 
-    <!-- fullscreen modal overlay -->
-    <div id="chartModal" class="chart-modal hidden">
-        <div class="modal-content">
-            <button id="closeModal" class="close-btn">&times;</button>
-            <div id="modalControls" style="margin-bottom:16px; display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding-bottom:16px; border-bottom:1px solid #e5e7eb;">
-                <label for="startDateModal" style="margin:0; font-size:14px; color:#374151; font-weight:600;">Start Date:</label>
-                <input type="date" id="startDateModal" style="padding:6px 10px; font-size:14px; border:1px solid #d1d5db; border-radius:6px; min-width:140px;">
-                <label for="endDateModal" style="margin:0; font-size:14px; color:#374151; font-weight:600;">End Date:</label>
-                <input type="date" id="endDateModal" style="padding:6px 10px; font-size:14px; border:1px solid #d1d5db; border-radius:6px; min-width:140px;">
-                <button id="applyModalFilter" style="padding:8px 16px; border:1px solid #3b82f6; border-radius:6px; background:#3b82f6; color:#fff; font-size:14px; font-weight:600; cursor:pointer;">Apply</button>
-                <button id="resetModalFilter" style="padding:8px 16px; border:1px solid #6b7280; border-radius:6px; background:#f3f4f6; color:#374151; font-size:14px; font-weight:600; cursor:pointer;">Reset</button>
-            </div>
-            <div id="modalMessage" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-                    font-size:18px; color:#6b7280; text-align:center; pointer-events:none;">
-                No data for selected date range
-            </div>
-            <div id="modalChartWrapper" style="overflow-x:auto;">
-                <canvas id="modalChart" style="width:100%; height:70vh;"></canvas>
-            </div>
-        </div>
-    </div>
+    <script id="dashboardChartData" type="application/json">
+        {!! json_encode($dashboardChartData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const chartsGrid = document.getElementById('chartsGrid');
-            
-            // Set default date range for modal (last 30 days)
+        document.addEventListener('DOMContentLoaded', () => {
+            const dashboardChartData = JSON.parse(
+                document.getElementById('dashboardChartData').textContent
+            );
+
+            const chartEndpoint = dashboardChartData.chartEndpoint;
+            const analytics = normalizeData(dashboardChartData);
             const today = new Date();
-            const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
-            
-            // --- Enhanced Category Chart ---
-            const catCtx = document.getElementById('categoryChart').getContext('2d');
-            const categories = @json($categoryAnalytics);
-            const catLabels = categories.map(c => c.name);
-            const catAvailability = categories.map(c => c.availability);
-            const catRequested = categories.map(c => c.requested);
+            const defaultStartDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            const charts = {};
+            const modalState = { type: null, instance: null };
 
-            // Enhanced gradients
-            const gAvail = catCtx.createLinearGradient(0,0,0,300);
-            gAvail.addColorStop(0, 'rgba(34,197,94,0.6)');
-            gAvail.addColorStop(0.5, 'rgba(34,197,94,0.4)');
-            gAvail.addColorStop(1, 'rgba(34,197,94,0.3)');
-            const gReq = catCtx.createLinearGradient(0,0,0,300);
-            gReq.addColorStop(0, 'rgba(59,130,246,0.6)');
-            gReq.addColorStop(0.5, 'rgba(59,130,246,0.4)');
-            gReq.addColorStop(1, 'rgba(59,130,246,0.3)');
+            const elements = {
+                modal: document.getElementById('chartModal'),
+                modalCanvas: document.getElementById('modalChart'),
+                modalWrapper: document.getElementById('modalChartWrapper'),
+                modalMessage: document.getElementById('modalMessage'),
+                startDate: document.getElementById('startDateModal'),
+                endDate: document.getElementById('endDateModal'),
+                closeModal: document.getElementById('closeModal'),
+                applyFilter: document.getElementById('applyModalFilter'),
+                resetFilter: document.getElementById('resetModalFilter'),
+                officeTop: document.getElementById('officeTop'),
+                itemsTop: document.getElementById('itemsTop'),
+                lowStockTop: document.getElementById('lowStockTop'),
+                outStockTop: document.getElementById('outStockTop'),
+                fastMovingTop: document.getElementById('fastMovingTop'),
+                officeQuantityTop: document.getElementById('officeQuantityTop'),
+            };
 
-            const catChart = new Chart(catCtx, {
-                type: 'bar',
-                data: {
-                    labels: catLabels,
-                    datasets: [
-                        { 
-                            label: 'Available Stock', 
-                            data: catAvailability, 
-                            backgroundColor: gAvail, 
-                            borderColor: 'rgba(34,197,94,1)', 
-                            borderWidth: 2, 
-                            borderRadius: 8, 
-                            borderSkipped: false,
-                            barPercentage: 0.8
-                        },
-                        { 
-                            label: 'Approved Requests', 
-                            data: catRequested, 
-                            backgroundColor: gReq, 
-                            borderColor: 'rgba(59,130,246,1)', 
-                            borderWidth: 2, 
-                            borderRadius: 8, 
-                            borderSkipped: false,
-                            barPercentage: 0.8
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 1200, easing: 'easeOutQuart' },
-                    plugins: { 
-                        legend: { 
-                            labels: { 
-                                color: '#000',
-                                font: { size: 12, weight: '600' },
-                                padding: 15
-                            } 
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(0,0,0,0.8)',
-                            titleColor: '#fff',
-                            bodyColor: '#fff',
-                            borderColor: 'rgba(255,255,255,0.2)',
-                            borderWidth: 1,
-                            cornerRadius: 8,
-                            padding: 12
-                        }
-                    },
-                    scales: {
-                        y: { 
-                            beginAtZero:true, 
-                            ticks:{ color:'#000', font: { size: 11 } }, 
-                            grid:{ color:'rgba(255,255,255,0.1)' },
-                            title: {
-                                display: true,
-                                text: 'Quantity',
-                                color: '#000',
-                                font: { size: 12, weight: '600' }
-                            }
-                        },
-                        x: { 
-                            ticks:{ color:'#000', font: { size: 11 } }, 
-                            grid:{ display: false },
-                            title: {
-                                display: true,
-                                text: 'Categories',
-                                color: '#000',
-                                font: { size: 12, weight: '600' }
-                            }
-                        }
-                    },
-                    interaction: { intersect: false, mode: 'index' }
-                }
-            });
+            const chartBuilders = {
+                category: buildCategoryChart,
+                office: buildOfficeChart,
+                items: buildItemsChart,
+                lowStock: buildLowStockChart,
+                outStock: buildOutStockChart,
+                requestStatus: buildRequestStatusChart,
+                monthlyConsumption: buildMonthlyConsumptionChart,
+                stockMovement: buildStockMovementChart,
+                fastMoving: buildFastMovingChart,
+                officeQuantity: buildOfficeQuantityChart,
+                pendingAging: buildPendingAgingChart,
+            };
 
-            // --- Enhanced Office Chart ---
-            const officeCtx = document.getElementById('officeChart').getContext('2d');
-            const offices = @json($officeAnalytics);
-            const officeLabels = offices.map(o => o.office);
-            const officeCounts = offices.map(o => o.count);
+            initCharts();
+            renderSummaries(analytics);
+            bindEvents();
 
-            // Dynamic color gradients
-            const officeGradients = officeCounts.map((v,i) => {
-                const g = officeCtx.createLinearGradient(0,0,300,0);
-                if(i===0){ 
-                    g.addColorStop(0,'rgba(249,115,22,0.6)'); 
-                    g.addColorStop(0.5,'rgba(249,115,22,0.4)'); 
-                    g.addColorStop(1,'rgba(249,115,22,0.3)'); 
-                }
-                else if(i===1){ 
-                    g.addColorStop(0,'rgba(168,85,247,0.6)'); 
-                    g.addColorStop(0.5,'rgba(168,85,247,0.4)'); 
-                    g.addColorStop(1,'rgba(168,85,247,0.3)'); 
-                }
-                else { 
-                    g.addColorStop(0,'rgba(59,130,246,0.5)'); 
-                    g.addColorStop(0.5,'rgba(59,130,246,0.4)'); 
-                    g.addColorStop(1,'rgba(59,130,246,0.3)'); 
-                }
-                return g;
-            });
+            function initCharts() {
+                Object.keys(chartBuilders).forEach((type) => {
+                    const canvasId = `${type}Chart`;
+                    charts[type] = createChart(canvasId, type, analytics);
+                });
+            }
 
-            const officeChart = new Chart(officeCtx, {
-                type: 'bar',
-                data: { 
-                    labels: officeLabels, 
-                    datasets: [{ 
-                        label: 'Requests', 
-                        data: officeCounts, 
-                        backgroundColor: officeGradients, 
-                        borderRadius: 8, 
-                        borderSkipped: false,
-                        barPercentage: 0.7
-                    }] 
-                },
-                options: {
-                    indexAxis: 'y', 
-                    responsive:true, 
-                    maintainAspectRatio:false,
-                    animation:{ duration:1000, easing:'easeOutQuart' },
-                    plugins:{ 
-                        legend:{ display:false }, 
-                        tooltip:{ 
-                            backgroundColor: 'rgba(0,0,0,0.8)',
-                            titleColor: '#fff',
-                            bodyColor: '#fff',
-                            borderColor: 'rgba(255,255,255,0.2)',
-                            borderWidth: 1,
-                            cornerRadius: 8,
-                            padding: 12,
-                            callbacks:{ 
-                                label: ctx => ctx.parsed.x + ' requests' 
-                            } 
-                        } 
-                    },
-                    scales:{
-                        x:{
-                            beginAtZero:true,
-                            ticks:{ color:'#000', font: { size: 11 } },
-                            grid:{ color:'rgba(255,255,255,0.1)' },
-                            title: {
-                                display: true,
-                                text: 'Number of Requests',
-                                color: '#000',
-                                font: { size: 12, weight: '600' }
-                            }
-                        },
-                        y:{ 
-                            ticks:{ color:'#000', font: { size: 11 } },
-                            grid:{ display: false },
-                            title: {
-                                display: true,
-                                text: 'Offices',
-                                color: '#000',
-                                font: { size: 12, weight: '600' }
-                            }
-                        }
+            function createChart(canvasId, type, data) {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas || !chartBuilders[type]) return null;
+
+                const ctx = canvas.getContext('2d');
+                return new Chart(ctx, chartBuilders[type](ctx, data));
+            }
+
+            function bindEvents() {
+                document.querySelectorAll('[data-chart-type]').forEach((card) => {
+                    card.addEventListener('click', () => openModal(card.dataset.chartType));
+                });
+
+                elements.closeModal.addEventListener('click', closeModal);
+                elements.applyFilter.addEventListener('click', applyModalFilter);
+                elements.resetFilter.addEventListener('click', resetModalFilter);
+
+                elements.modal.addEventListener('click', (event) => {
+                    if (event.target === elements.modal) closeModal();
+                });
+
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape' && !elements.modal.classList.contains('hidden')) {
+                        closeModal();
                     }
-                }
-            });
+                });
 
-            // --- Most Requested Items Chart ---
-            const itemsCtx = document.getElementById('itemsChart').getContext('2d');
-            const items = @json($itemAnalytics);
-            const itemLabels = items.map(i => i.id_no + ' - ' + (i.description.length > 20 ? i.description.substring(0,20) + '...' : i.description));
-            const itemCounts = items.map(i => i.total_requested);
+                window.addEventListener('resize', () => {
+                    if (modalState.instance) modalState.instance.resize();
+                });
+            }
 
-            // Enhanced gradients for items
-            const itemGradients = itemCounts.map((v,i) => {
-                const g = itemsCtx.createLinearGradient(0,0,0,300);
-                const hue = (i * 360 / itemCounts.length) % 360;
-                g.addColorStop(0, `hsla(${hue}, 70%, 60%, 0.6)`);
-                g.addColorStop(0.5, `hsla(${hue}, 70%, 60%, 0.4)`);
-                g.addColorStop(1, `hsla(${hue}, 70%, 60%, 0.3)`);
-                return g;
-            });
+            function buildCategoryChart(ctx, data) {
+                return barChart({
+                    labels: data.categories.map((category) => category.name),
+                    datasets: [
+                        dataset('Available Stock', data.categories.map((category) => numberValue(category.availability)), greenGradient(ctx)),
+                        dataset('Approved Requests', data.categories.map((category) => numberValue(category.requested)), blueGradient(ctx)),
+                    ],
+                    xTitle: 'Categories',
+                    yTitle: 'Quantity',
+                });
+            }
 
-            const itemsChart = new Chart(itemsCtx, {
-                type: 'bar',
-                data: {
-                    labels: itemLabels,
+            function buildOfficeChart(ctx, data) {
+                return horizontalBarChart({
+                    labels: data.offices.map((office) => office.office),
+                    datasets: [
+                        dataset(
+                            'Requests',
+                            data.offices.map((office) => numberValue(office.count)),
+                            'rgba(249, 115, 22, .60)'
+                        )
+                    ],
+                    xTitle: 'Number of Requests',
+                    yTitle: 'Offices',
+                    shortYAxis: true,
+                    yTickLimit: 26,
+                    tooltipTitle: (context) => context[0].label,
+                    tooltipLabel: (context) => `${context.parsed.x} request(s)`,
+                });
+            }
+
+            function buildItemsChart(ctx, data) {
+                return horizontalBarChart({
+                    labels: data.items.map((item) => `${item.id_no} - ${item.description}`),
+                    datasets: [
+                        dataset(
+                            'Request Count',
+                            data.items.map((item) => numberValue(item.total_requested)),
+                            'rgba(59, 130, 246, .65)'
+                        )
+                    ],
+                    xTitle: 'Times Requested',
+                    yTitle: 'Items',
+                    shortYAxis: true,
+                    yTickLimit: 34,
+                    tooltipTitle: (context) => {
+                        const item = data.items[context[0].dataIndex];
+                        return item ? `${item.id_no} - ${item.description}` : '';
+                    },
+                    tooltipLabel: (context) => {
+                        const item = data.items[context.dataIndex];
+
+                        return item
+                            ? [
+                                `Requested: ${context.parsed.x} time(s)`,
+                                `Category: ${item.category}`,
+                                `Unit: ${item.unit}`,
+                            ]
+                            : `${context.parsed.x} request(s)`;
+                    },
+                });
+            }
+
+            function buildLowStockChart(ctx, data) {
+                return horizontalBarChart({
+                    labels: data.lowStock.map((row) => row.category),
+                    datasets: [
+                        dataset(
+                            'Low Stock Items',
+                            data.lowStock.map((row) => numberValue(row.total)),
+                            'rgba(249, 115, 22, .60)'
+                        )
+                    ],
+                    xTitle: 'Number of Items',
+                    yTitle: 'Category',
+                    shortYAxis: true,
+                    yTickLimit: 28,
+                    tooltipTitle: (context) => context[0].label,
+                    tooltipLabel: (context) => {
+                        const row = data.lowStock[context.dataIndex];
+                        const threshold = row?.threshold ? `Threshold: ${row.threshold}` : 'Threshold: 49';
+
+                        return [
+                            `${context.parsed.x} low stock item(s)`,
+                            threshold,
+                        ];
+                    },
+                });
+            }
+
+            function buildOutStockChart(ctx, data) {
+                return horizontalBarChart({
+                    labels: data.outStock.map((row) => row.category),
+                    datasets: [
+                        dataset(
+                            'Out of Stock Items',
+                            data.outStock.map((row) => numberValue(row.total)),
+                            'rgba(239, 68, 68, .60)'
+                        )
+                    ],
+                    xTitle: 'Number of Items',
+                    yTitle: 'Category',
+                    shortYAxis: true,
+                    yTickLimit: 28,
+                    tooltipTitle: (context) => context[0].label,
+                    tooltipLabel: (context) => `${context.parsed.x} out of stock item(s)`,
+                });
+            }
+
+            function buildRequestStatusChart(ctx, data) {
+                return {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.requestStatus.map((row) => row.status),
+                        datasets: [{
+                            label: 'Requests',
+                            data: data.requestStatus.map((row) => numberValue(row.total)),
+                            backgroundColor: palette(data.requestStatus.length),
+                            borderColor: 'rgba(255, 255, 255, .8)',
+                            borderWidth: 2,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: animationOptions(1000),
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#000', font: { size: 12, weight: '600' } },
+                            },
+                            tooltip: tooltipOptions(),
+                        },
+                    },
+                };
+            }
+
+            function buildMonthlyConsumptionChart(ctx, data) {
+                return lineChart({
+                    labels: data.monthlyConsumption.map((row) => row.month || row.label),
                     datasets: [{
-                        label: 'Times Requested',
-                        data: itemCounts,
-                        backgroundColor: itemGradients,
-                        borderColor: 'rgba(255,255,255,0.2)',
-                        borderWidth: 1,
-                        borderRadius: 8,
-                        borderSkipped: false,
-                        barPercentage: 0.8
-                    }]
-                },
-                options: {
+                        label: 'Approved Quantity',
+                        data: data.monthlyConsumption.map((row) => numberValue(row.total ?? row.approved_quantity)),
+                        backgroundColor: 'rgba(59, 130, 246, .25)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        tension: .35,
+                        fill: true,
+                    }],
+                    xTitle: 'Month',
+                    yTitle: 'Approved Quantity',
+                });
+            }
+
+            function buildStockMovementChart(ctx, data) {
+                const hasMonthlyFormat = data.stockMovement.some((row) => {
+                    return Object.prototype.hasOwnProperty.call(row, 'stock_in')
+                        || Object.prototype.hasOwnProperty.call(row, 'stock_out');
+                });
+
+                if (hasMonthlyFormat) {
+                    return barChart({
+                        labels: data.stockMovement.map((row) => row.month || row.label),
+                        datasets: [
+                            dataset('Stock In', data.stockMovement.map((row) => numberValue(row.stock_in)), greenGradient(ctx)),
+                            dataset('Stock Out', data.stockMovement.map((row) => numberValue(row.stock_out)), blueGradient(ctx)),
+                        ],
+                        xTitle: 'Month',
+                        yTitle: 'Quantity',
+                    });
+                }
+
+                return barChart({
+                    labels: data.stockMovement.map((row) => row.label),
+                    datasets: [
+                        dataset('Quantity', data.stockMovement.map((row) => numberValue(row.total)), 'rgba(34, 197, 94, .60)'),
+                    ],
+                    xTitle: 'Movement',
+                    yTitle: 'Quantity',
+                });
+            }
+
+            function buildFastMovingChart(ctx, data) {
+                return horizontalBarChart({
+                    labels: data.fastMoving.map((item) => `${item.id_no} - ${item.description}`),
+                    datasets: [
+                        dataset(
+                            'Released Quantity',
+                            data.fastMoving.map((item) => movementQuantity(item)),
+                            'rgba(20, 184, 166, .65)'
+                        )
+                    ],
+                    xTitle: 'Released Quantity',
+                    yTitle: 'Items',
+                    shortYAxis: true,
+                    yTickLimit: 34,
+                    tooltipTitle: (context) => {
+                        const item = data.fastMoving[context[0].dataIndex];
+                        return item ? `${item.id_no} - ${item.description}` : '';
+                    },
+                    tooltipLabel: (context) => {
+                        const item = data.fastMoving[context.dataIndex];
+
+                        return item
+                            ? [
+                                `Quantity: ${context.parsed.x}`,
+                                `Category: ${item.category}`,
+                                `Unit: ${item.unit}`,
+                            ]
+                            : `${context.parsed.x}`;
+                    },
+                });
+            }
+
+            function buildOfficeQuantityChart(ctx, data) {
+                return horizontalBarChart({
+                    labels: data.officeQuantity.map((office) => office.office),
+                    datasets: [
+                        dataset(
+                            'Approved Quantity',
+                            data.officeQuantity.map((office) => numberValue(office.total_quantity ?? office.quantity)),
+                            'rgba(168, 85, 247, .60)'
+                        )
+                    ],
+                    xTitle: 'Approved Quantity',
+                    yTitle: 'Offices',
+                    shortYAxis: true,
+                    yTickLimit: 26,
+                    tooltipTitle: (context) => context[0].label,
+                    tooltipLabel: (context) => `${context.parsed.x} approved item(s)`,
+                });
+            }
+
+            function buildPendingAgingChart(ctx, data) {
+                return barChart({
+                    labels: data.pendingAging.map((row) => row.range || row.label),
+                    datasets: [
+                        dataset(
+                            'Pending Requests',
+                            data.pendingAging.map((row) => numberValue(row.total)),
+                            'rgba(249, 115, 22, .60)'
+                        )
+                    ],
+                    xTitle: 'Age Range',
+                    yTitle: 'Pending Requests',
+                    tooltipLabel: (context) => `${context.parsed.y} pending request(s)`,
+                });
+            }
+
+            function barChart({ labels, datasets, xTitle, yTitle, tooltipTitle = null, tooltipLabel = null, rotateX = false }) {
+                return {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options: commonOptions({ xTitle, yTitle, tooltipTitle, tooltipLabel, rotateX }),
+                };
+            }
+
+            function horizontalBarChart({
+                labels,
+                datasets,
+                xTitle,
+                yTitle,
+                tooltipTitle = null,
+                tooltipLabel = null,
+                shortYAxis = false,
+                yTickLimit = 24,
+            }) {
+                const options = commonOptions({ xTitle, yTitle, tooltipTitle, tooltipLabel });
+                options.indexAxis = 'y';
+                options.scales.x = chartAxis(xTitle);
+                options.scales.y = shortYAxis ? shortLabelAxis(yTitle, yTickLimit) : chartAxis(yTitle, false);
+
+                return {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    options,
+                };
+            }
+
+            function lineChart({ labels, datasets, xTitle, yTitle }) {
+                return {
+                    type: 'line',
+                    data: { labels, datasets },
+                    options: commonOptions({ xTitle, yTitle }),
+                };
+            }
+
+            function dataset(label, data, backgroundColor) {
+                return {
+                    label,
+                    data,
+                    backgroundColor,
+                    borderColor: Array.isArray(backgroundColor)
+                        ? 'rgba(255, 255, 255, .25)'
+                        : backgroundColor,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: .75,
+                };
+            }
+
+            function commonOptions({ xTitle, yTitle, tooltipTitle = null, tooltipLabel = null, rotateX = false }) {
+                const tooltip = tooltipOptions();
+
+                if (tooltipTitle || tooltipLabel) {
+                    tooltip.callbacks = {};
+                    if (tooltipTitle) tooltip.callbacks.title = tooltipTitle;
+                    if (tooltipLabel) tooltip.callbacks.label = tooltipLabel;
+                }
+
+                return {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: { duration: 1100, easing: 'easeOutQuart' },
+                    animation: animationOptions(1000),
                     plugins: {
                         legend: {
-                            display: false
+                            labels: {
+                                color: '#000',
+                                font: { size: 12, weight: '600' },
+                                padding: 15,
+                            },
                         },
-                        tooltip: {
-                            backgroundColor: 'rgba(0,0,0,0.8)',
-                            titleColor: '#fff',
-                            bodyColor: '#fff',
-                            borderColor: 'rgba(255,255,255,0.2)',
-                            borderWidth: 1,
-                            cornerRadius: 8,
-                            padding: 12,
-                            callbacks: {
-                                title: function(context) {
-                                    const index = context[0].dataIndex;
-                                    const item = items[index];
-                                    return `${item.id_no} - ${item.description}`;
-                                },
-                                label: function(context) {
-                                    const index = context.dataIndex;
-                                    const item = items[index];
-                                    return [
-                                        `Requested: ${context.parsed.y} times`,
-                                        `Category: ${item.category}`,
-                                        `Unit: ${item.unit}`
-                                    ];
-                                }
-                            }
-                        }
+                        tooltip,
                     },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: '#000', font: { size: 11 } },
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            title: {
-                                display: true,
-                                text: 'Times Requested',
-                                color: '#000',
-                                font: { size: 12, weight: '600' }
-                            }
-                        },
-                        x: {
-                            ticks: { color: '#000', font: { size: 10 }, maxRotation: 45, minRotation: 45 },
-                            grid: { display: false },
-                            title: {
-                                display: true,
-                                text: 'Items (ID - Description)',
-                                color: '#000',
-                                font: { size: 12, weight: '600' }
-                            }
-                        }
+                        x: rotateX ? rotatedAxis(xTitle) : chartAxis(xTitle, false),
+                        y: chartAxis(yTitle),
                     },
-                    interaction: { intersect: false, mode: 'index' }
-                }
-            });
-
-            // Show top items summary
-            const topItem = items[0];
-            const topEl = document.getElementById('itemsTop');
-            if(topItem && topEl){ 
-                topEl.innerHTML = `<strong style="color:#000;">Top: ${topItem.id_no} - ${topItem.description}</strong><br><span style="color:#9ca3af; font-size:11px;">Requested ${topItem.total_requested} times</span>`; 
-            }
-
-            // Show top office summary
-            const topOffice = offices[0];
-            const topOfficeEl = document.getElementById('officeTop');
-            if(topOffice && topOfficeEl){ 
-                topOfficeEl.innerHTML = `<strong style="color:#000;">Top: ${topOffice.office}</strong><br><span style="color:#9ca3af; font-size:11px;">${topOffice.count} requests</span>`; 
-            }
-
-            // --- Filter functionality (only for modal) ---
-            function updateChartsWithFilter(startDate, endDate) {
-                // Show loading overlays
-                showLoadingStates();
-                
-                const url = '/admin/dashboard/chart-data' + '?start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
-                
-                fetch(url)
-                    .then(resp => resp.json())
-                    .then(data => {
-                        // Update category chart
-                        catChart.data.labels = data.categories.map(c => c.name);
-                        catChart.data.datasets[0].data = data.categories.map(c => c.availability);
-                        catChart.data.datasets[1].data = data.categories.map(c => c.requested);
-                        catChart.update('active');
-
-                        // Update office chart
-                        officeChart.data.labels = data.offices.map(o => o.office);
-                        officeChart.data.datasets[0].data = data.offices.map(o => o.count);
-                        officeChart.update('active');
-
-                        // Update items chart
-                        itemsChart.data.labels = data.items.map(i => i.id_no + ' - ' + (i.description.length > 20 ? i.description.substring(0,20) + '...' : i.description));
-                        itemsChart.data.datasets[0].data = data.items.map(i => i.total_requested);
-                        itemsChart.update('active');
-
-                        // Update summaries
-                        if(data.items.length > 0) {
-                            const newTopItem = data.items[0];
-                            topEl.innerHTML = `<strong style="color:#000;">Top: ${newTopItem.id_no} - ${newTopItem.description}</strong><br><span style="color:#9ca3af; font-size:11px;">Requested ${newTopItem.total_requested} times</span>`;
-                        }
-                        if(data.offices.length > 0) {
-                            const newTopOffice = data.offices[0];
-                            topOfficeEl.innerHTML = `<strong style="color:#000;">Top: ${newTopOffice.office}</strong><br><span style="color:#9ca3af; font-size:11px;">${newTopOffice.count} requests</span>`;
-                        }
-                        
-                        // Hide loading overlays
-                        hideLoadingStates();
-                    })
-                    .catch(error => {
-                        console.error('Error updating charts:', error);
-                        hideLoadingStates();
-                    });
-            }
-
-            // Loading state management functions
-            function showLoadingStates() {
-                document.getElementById('categoryLoading').classList.add('active');
-                document.getElementById('officeLoading').classList.add('active');
-                document.getElementById('itemsLoading').classList.add('active');
-            }
-
-            function hideLoadingStates() {
-                document.getElementById('categoryLoading').classList.remove('active');
-                document.getElementById('officeLoading').classList.remove('active');
-                document.getElementById('itemsLoading').classList.remove('active');
-            }
-
-            // --- Modal functionality ---
-            let modalChartInstance = null;
-            const modal = document.getElementById('chartModal');
-            const modalCanvas = document.getElementById('modalChart');
-            const closeBtn = document.getElementById('closeModal');
-
-            function cloneChartConfig(src) {
-                const cfg = {
-                    type: src.config.type,
-                    data: {
-                        labels: Array.isArray(src.config.data.labels) ? [...src.config.data.labels] : src.config.data.labels,
-                        datasets: src.config.data.datasets.map(ds => {
-                            const copy = { ...ds };
-                            if(Array.isArray(ds.data)) copy.data = [...ds.data];
-                            return copy;
-                        })
-                    },
-                    options: src.config.options ? { ...src.config.options } : {}
+                    interaction: { intersect: false, mode: 'index' },
                 };
-                if(src.config.plugins) cfg.plugins = { ...src.config.plugins };
-                return cfg;
             }
 
-            let currentChartType = null;
-            let originalChartForModal = null;
+            function chartAxis(title, showGrid = true) {
+                return {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#000',
+                        font: { size: 11 },
+                        precision: 0,
+                    },
+                    grid: {
+                        display: showGrid,
+                        color: 'rgba(0, 0, 0, .08)',
+                    },
+                    title: {
+                        display: true,
+                        text: title,
+                        color: '#000',
+                        font: { size: 12, weight: '600' },
+                    },
+                };
+            }
 
-            function openChartFullscreen(chart, type) {
-                if(modalChartInstance) return;
-                currentChartType = type;
-                originalChartForModal = chart;
-                
-                // Set modal date inputs to default range
-                document.getElementById('startDateModal').value = thirtyDaysAgo.toISOString().split('T')[0];
-                document.getElementById('endDateModal').value = today.toISOString().split('T')[0];
+            function shortLabelAxis(title, limit = 24) {
+                return {
+                    ...chartAxis(title, false),
+                    ticks: {
+                        color: '#000',
+                        font: { size: 10 },
+                        callback: function(value) {
+                            const label = this.getLabelForValue(value);
+                            return truncate(label, limit);
+                        },
+                    },
+                };
+            }
+
+            function rotatedAxis(title) {
+                return {
+                    ...chartAxis(title, false),
+                    ticks: {
+                        color: '#000',
+                        font: { size: 10 },
+                        maxRotation: 45,
+                        minRotation: 45,
+                    },
+                };
+            }
+
+            function tooltipOptions() {
+                return {
+                    backgroundColor: 'rgba(0, 0, 0, .8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, .2)',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    padding: 12,
+                };
+            }
+
+            function animationOptions(duration) {
+                return { duration, easing: 'easeOutQuart' };
+            }
+
+            function palette(count) {
+                const colors = [
+                    'rgba(59, 130, 246, .75)',
+                    'rgba(34, 197, 94, .75)',
+                    'rgba(249, 115, 22, .75)',
+                    'rgba(239, 68, 68, .75)',
+                    'rgba(168, 85, 247, .75)',
+                    'rgba(20, 184, 166, .75)',
+                    'rgba(234, 179, 8, .75)',
+                ];
+
+                return Array.from({ length: Math.max(count, 1) }, (_, index) => colors[index % colors.length]);
+            }
+
+            function greenGradient(ctx) {
+                return verticalGradient(ctx, [[0, 'rgba(34, 197, 94, .6)'], [.5, 'rgba(34, 197, 94, .4)'], [1, 'rgba(34, 197, 94, .3)']]);
+            }
+
+            function blueGradient(ctx) {
+                return verticalGradient(ctx, [[0, 'rgba(59, 130, 246, .6)'], [.5, 'rgba(59, 130, 246, .4)'], [1, 'rgba(59, 130, 246, .3)']]);
+            }
+
+            function verticalGradient(ctx, stops) {
+                return gradient(ctx, 0, 0, 0, 320, stops);
+            }
+
+            function gradient(ctx, x0, y0, x1, y1, stops) {
+                const canvasGradient = ctx.createLinearGradient(x0, y0, x1, y1);
+                stops.forEach(([offset, color]) => canvasGradient.addColorStop(offset, color));
+                return canvasGradient;
+            }
+
+            function renderSummaries(data) {
+                const topOffice = data.offices[0];
+                const topItem = data.items[0];
+                const topLowStock = data.lowStock[0];
+                const totalOutStock = data.outStock.reduce((sum, row) => sum + numberValue(row.total), 0);
+                const topFastMoving = data.fastMoving[0];
+                const topOfficeQuantity = data.officeQuantity[0];
+
+                renderSummary(
+                    elements.officeTop,
+                    topOffice ? `Top: ${topOffice.office}` : null,
+                    topOffice ? `${numberValue(topOffice.count)} request(s)` : null
+                );
+
+                renderSummary(
+                    elements.itemsTop,
+                    topItem ? `Top: ${topItem.id_no} - ${topItem.description}` : null,
+                    topItem ? `Requested ${numberValue(topItem.total_requested)} time(s)` : null
+                );
+
+                renderSummary(
+                    elements.lowStockTop,
+                    topLowStock ? `Top category: ${topLowStock.category}` : null,
+                    topLowStock ? `${numberValue(topLowStock.total)} low stock item(s)` : null
+                );
+
+                renderSummary(
+                    elements.outStockTop,
+                    totalOutStock > 0 ? `${totalOutStock} item(s) out of stock` : null,
+                    totalOutStock > 0 ? 'Grouped by category' : null
+                );
+
+                renderSummary(
+                    elements.fastMovingTop,
+                    topFastMoving ? `Top: ${topFastMoving.id_no} - ${topFastMoving.description}` : null,
+                    topFastMoving ? `${movementQuantity(topFastMoving)} released item(s)` : null
+                );
+
+                renderSummary(
+                    elements.officeQuantityTop,
+                    topOfficeQuantity ? `Top: ${topOfficeQuantity.office}` : null,
+                    topOfficeQuantity ? `${numberValue(topOfficeQuantity.total_quantity ?? topOfficeQuantity.quantity)} approved item(s)` : null
+                );
+            }
+
+            function renderSummary(element, title, subtitle) {
+                if (!element) return;
+                element.replaceChildren();
+
+                if (!title) {
+                    element.textContent = 'No data available';
+                    return;
+                }
+
+                const strong = document.createElement('strong');
+                strong.className = 'summary-main';
+                strong.textContent = title;
+
+                const lineBreak = document.createElement('br');
+
+                const span = document.createElement('span');
+                span.className = 'summary-sub';
+                span.textContent = subtitle || '';
+
+                element.append(strong, lineBreak, span);
+            }
+
+            function openModal(type) {
+                if (!chartBuilders[type]) return;
+
+                modalState.type = type;
+                elements.startDate.value = formatDate(defaultStartDate);
+                elements.endDate.value = formatDate(today);
+                elements.modal.classList.remove('hidden');
+                elements.modal.setAttribute('aria-hidden', 'false');
                 document.body.style.overflow = 'hidden';
-                modal.classList.remove('hidden');
-                window.addEventListener('resize', handleModalResize);
-                
-                // Only load data if user has actually selected a date range
-                // Don't auto-load with default dates to avoid showing data when user hasn't selected anything
+
+                renderModalChart(analytics);
             }
 
             function closeModal() {
-                if(modalChartInstance) {
-                    modalChartInstance.destroy();
-                    modalChartInstance = null;
-                }
-                currentChartType = null;
-                originalChartForModal = null;
-                modal.classList.add('hidden');
-                window.removeEventListener('resize', handleModalResize);
+                destroyModalChart();
+                modalState.type = null;
+                elements.modal.classList.add('hidden');
+                elements.modal.setAttribute('aria-hidden', 'true');
                 document.body.style.overflow = '';
+                hideModalMessage();
             }
 
-            function handleModalResize(){
-                if(modalChartInstance){
-                    try{ modalChartInstance.resize(); }catch(e){}
-                }
+            function applyModalFilter() {
+                fetchModalData(elements.startDate.value, elements.endDate.value);
             }
 
-            function loadModalChartData(startDate, endDate) {
-                if(!startDate || !endDate) {
-                    const msg = document.getElementById('modalMessage');
-                    if(msg) {
-                        msg.textContent = 'Please select both start and end dates';
-                        msg.style.display = 'block';
-                    }
+            function resetModalFilter() {
+                elements.startDate.value = formatDate(defaultStartDate);
+                elements.endDate.value = formatDate(today);
+                renderModalChart(analytics);
+            }
+
+            async function fetchModalData(startDate, endDate) {
+                if (!startDate || !endDate) {
+                    showModalMessage('Please select both start and end dates.');
                     return;
                 }
 
-                // Show loading state in modal
-                const msg = document.getElementById('modalMessage');
-                if(msg) {
-                    msg.innerHTML = '<div style="display:flex; flex-direction:column; align-items:center; gap:10px;"><div class="spinner" style="width:30px; height:30px; border-width:3px;"></div><div>Loading chart data...</div></div>';
-                    msg.style.display = 'block';
-                }
+                showModalMessage('Loading chart data...');
 
-                const url = '/admin/dashboard/chart-data' + '?start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
-                fetch(url)
-                    .then(resp => resp.json())
-                    .then(data => {
-                        rebuildModalChart(originalChartForModal, data);
-                    })
-                    .catch(error => {
-                        console.error('Error loading modal chart:', error);
-                        if(msg) {
-                            msg.textContent = 'Error loading chart data';
-                            msg.style.display = 'block';
-                        }
-                    });
+                try {
+                    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+                    const response = await fetch(`${chartEndpoint}?${params.toString()}`);
+
+                    if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+
+                    renderModalChart(normalizeData(await response.json()));
+                } catch (error) {
+                    console.error('Error loading modal chart:', error);
+                    showModalMessage('Error loading chart data.');
+                }
             }
 
-            function rebuildModalChart(sourceChart, data) {
-                if(modalChartInstance) {
-                    modalChartInstance.destroy();
-                    modalChartInstance = null;
-                }
+            function renderModalChart(data) {
+                destroyModalChart();
 
-                const messageEl = document.getElementById('modalMessage');
-
-                // Check if we have data
-                let hasData = false;
-                if(currentChartType === 'category') {
-                    hasData = data.categories && data.categories.length > 0;
-                } else if(currentChartType === 'office') {
-                    hasData = data.offices && data.offices.length > 0;
-                } else if(currentChartType === 'items') {
-                    hasData = data.items && data.items.length > 0;
-                }
-
-                if(!hasData) {
-                    if(messageEl){
-                        messageEl.textContent = 'No data for selected date range';
-                        messageEl.style.display = 'block';
-                    }
-                    const ctx = modalCanvas.getContext('2d');
-                    ctx.clearRect(0, 0, modalCanvas.width, modalCanvas.height);
+                if (!hasChartData(modalState.type, data)) {
+                    clearModalCanvas();
+                    showModalMessage('No data for selected date range.');
                     return;
                 }
 
-                if(messageEl) messageEl.style.display = 'none';
+                hideModalMessage();
+                resizeModalCanvas(getDataCount(modalState.type, data));
 
-                const cfg = cloneChartConfig(sourceChart);
-                let labelsCount = 0;
-                
-                if(currentChartType === 'category') {
-                    cfg.data.labels = data.categories.map(c=>c.name);
-                    cfg.data.datasets[0].data = data.categories.map(c=>c.availability);
-                    cfg.data.datasets[1].data = data.categories.map(c=>c.requested);
-                    labelsCount = data.categories.length;
-                } else if(currentChartType === 'office') {
-                    cfg.data.labels = data.offices.map(o=>o.office);
-                    cfg.data.datasets[0].data = data.offices.map(o=>o.count);
-                    labelsCount = data.offices.length;
-                } else if(currentChartType === 'items') {
-                    cfg.data.labels = data.items.map(i => i.id_no + ' - ' + (i.description.length > 30 ? i.description.substring(0,30) + '...' : i.description));
-                    cfg.data.datasets[0].data = data.items.map(i => i.total_requested);
-                    labelsCount = data.items.length;
-                }
-
-                const wrapper = document.getElementById('modalChartWrapper');
-                if(wrapper && modalCanvas) {
-                    const minWidth = wrapper.clientWidth;
-                    const extra = labelsCount * 80;
-                    modalCanvas.style.width = Math.max(minWidth, extra) + 'px';
-                    wrapper.scrollLeft = 0;
-                }
-
-                modalChartInstance = new Chart(modalCanvas.getContext('2d'), cfg);
-                modalChartInstance.resize();
+                const ctx = elements.modalCanvas.getContext('2d');
+                modalState.instance = new Chart(ctx, chartBuilders[modalState.type](ctx, data));
+                modalState.instance.resize();
             }
 
-            // Modal filter controls
-            document.getElementById('applyModalFilter').addEventListener('click', function() {
-                const startDate = document.getElementById('startDateModal').value;
-                const endDate = document.getElementById('endDateModal').value;
-                loadModalChartData(startDate, endDate);
-            });
-
-            document.getElementById('resetModalFilter').addEventListener('click', function() {
-                const today = new Date();
-                const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
-                document.getElementById('startDateModal').value = thirtyDaysAgo.toISOString().split('T')[0];
-                document.getElementById('endDateModal').value = today.toISOString().split('T')[0];
-                loadModalChartData(
-                    thirtyDaysAgo.toISOString().split('T')[0],
-                    today.toISOString().split('T')[0]
-                );
-            });
-
-            closeBtn.addEventListener('click', closeModal);
-            modal.addEventListener('click', function(e){ if(e.target === modal) closeModal(); });
-
-            // Make charts clickable
-            function makeClickable(card, chart, type) {
-                card.style.cursor = 'pointer';
-                card.addEventListener('click', function(){ openChartFullscreen(chart, type); });
-                const canvas = card.querySelector('canvas');
-                if(canvas){ canvas.addEventListener('click', function(e){ e.stopPropagation(); openChartFullscreen(chart, type); }); }
+            function destroyModalChart() {
+                if (!modalState.instance) return;
+                modalState.instance.destroy();
+                modalState.instance = null;
             }
 
-            makeClickable(document.getElementById('categoryCard'), catChart, 'category');
-            makeClickable(document.getElementById('officeCard'), officeChart, 'office');
-            makeClickable(document.getElementById('itemsCard'), itemsChart, 'items');
+            function resizeModalCanvas(labelsCount) {
+                const wrapperWidth = elements.modalWrapper.clientWidth || 900;
+                elements.modalCanvas.style.width = `${Math.max(wrapperWidth, labelsCount * 105)}px`;
+                elements.modalWrapper.scrollLeft = 0;
+            }
+
+            function clearModalCanvas() {
+                const ctx = elements.modalCanvas.getContext('2d');
+                ctx.clearRect(0, 0, elements.modalCanvas.width, elements.modalCanvas.height);
+            }
+
+            function showModalMessage(message) {
+                elements.modalMessage.textContent = message;
+                elements.modalMessage.classList.add('active');
+            }
+
+            function hideModalMessage() {
+                elements.modalMessage.classList.remove('active');
+            }
+
+            function hasChartData(type, data) {
+                return getDataCount(type, data) > 0;
+            }
+
+            function getDataCount(type, data) {
+                const map = {
+                    category: data.categories,
+                    office: data.offices,
+                    items: data.items,
+                    lowStock: data.lowStock,
+                    outStock: data.outStock,
+                    requestStatus: data.requestStatus,
+                    monthlyConsumption: data.monthlyConsumption,
+                    stockMovement: data.stockMovement,
+                    fastMoving: data.fastMoving,
+                    officeQuantity: data.officeQuantity,
+                    pendingAging: data.pendingAging,
+                };
+
+                return Array.isArray(map[type]) ? map[type].length : 0;
+            }
+
+            function normalizeData(data) {
+                return {
+                    categories: Array.isArray(data.categories) ? data.categories : [],
+                    offices: Array.isArray(data.offices) ? data.offices : [],
+                    items: Array.isArray(data.items) ? data.items : [],
+                    lowStock: Array.isArray(data.lowStock) ? data.lowStock : [],
+                    outStock: Array.isArray(data.outStock) ? data.outStock : [],
+                    requestStatus: Array.isArray(data.requestStatus) ? data.requestStatus : [],
+                    monthlyConsumption: Array.isArray(data.monthlyConsumption) ? data.monthlyConsumption : [],
+                    stockMovement: Array.isArray(data.stockMovement) ? data.stockMovement : [],
+                    fastMoving: Array.isArray(data.fastMoving) ? data.fastMoving : [],
+                    officeQuantity: Array.isArray(data.officeQuantity) ? data.officeQuantity : [],
+                    pendingAging: Array.isArray(data.pendingAging) ? data.pendingAging : [],
+                };
+            }
+
+            function numberValue(value) {
+                const number = Number(value);
+                return Number.isFinite(number) ? number : 0;
+            }
+
+            function movementQuantity(item) {
+                return numberValue(item.total_quantity ?? item.total_released ?? item.total_requested);
+            }
+
+            function truncate(value, length) {
+                const text = String(value || '');
+                return text.length > length ? `${text.substring(0, length)}...` : text;
+            }
+
+            function formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+
+                return `${year}-${month}-${day}`;
+            }
         });
     </script>
+
 @endsection

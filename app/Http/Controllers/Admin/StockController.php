@@ -10,10 +10,41 @@ use App\Models\Category;
 class StockController extends Controller
 {
     // Show all stocks
-    public function index()
+    public function index(Request $request)
     {
-        $stocks = Stock::with('category')->get();
+        $q = trim((string) $request->query('q', ''));
+        $categoryId = $request->query('category_id');
+        $availability = $request->query('availability');
+
+        $stocks = Stock::with('category')
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($subQuery) use ($q) {
+                    $subQuery->where('id_no', 'like', "%{$q}%")
+                        ->orWhere('description', 'like', "%{$q}%")
+                        ->orWhereHas('category', function ($categoryQuery) use ($q) {
+                            $categoryQuery->where('name', 'like', "%{$q}%");
+                        });
+                });
+            })
+            ->when($categoryId, function ($query) use ($categoryId) {
+                $query->where('category_id', $categoryId);
+            })
+            ->when($availability === 'in', function ($query) {
+                $query->where('stock', '>=', 50);
+            })
+            ->when($availability === 'low', function ($query) {
+                $query->where('stock', '>', 0)
+                    ->where('stock', '<=', 49);
+            })
+            ->when($availability === 'out', function ($query) {
+                $query->where('stock', '<=', 0);
+            })
+            ->orderBy('description')
+            ->paginate(15)
+            ->withQueryString();
+
         $allCategories = Category::orderBy('name')->get();
+
         return view('admin.stocks.index', compact('stocks', 'allCategories'));
     }
 
@@ -147,15 +178,16 @@ class StockController extends Controller
     // Edit stock via modal (AJAX)
     public function editModal(Request $request, Stock $stock)
     {
-        \Log::info('Edit modal called', $request->all());
-
-        $request->validate([
+        $validated = $request->validate([
             'description' => 'required|string|max:255',
             'unit' => 'required|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
+            'hidden' => 'nullable|boolean',
         ]);
 
-        $stock->update($request->only(['description', 'unit', 'category_id']));
+        $validated['hidden'] = $request->boolean('hidden');
+
+        $stock->update($validated);
 
         return response()->json([
             'success' => true,

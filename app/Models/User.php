@@ -23,7 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'office',
+        's_p_office_id',
         'parent_client_id',
     ];
 
@@ -48,6 +48,15 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function office()
+    {
+        return $this->belongsTo(SPOffices::class, 's_p_office_id');
+    }
+    public function clientMembers()
+    {
+        return $this->hasMany(ClientMember::class,'client_id');
     }
 
     public function subaccounts()

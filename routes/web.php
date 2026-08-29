@@ -26,6 +26,9 @@ use App\Http\Controllers\Admin\RequestController as AdminRequestController;
 use App\Http\Controllers\Admin\PasswordResetController as AdminPasswordResetController;
 use App\Http\Controllers\Admin\NotificationPreferenceController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\AllocationController;
+use App\Http\Controllers\Admin\AdminSummaryController;
+use App\Http\Controllers\Admin\AdminNotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +44,7 @@ use App\Http\Controllers\Client\ClientNotificationController;
 use App\Http\Controllers\Client\ClientNotificationPreferenceController;
 use App\Http\Controllers\Client\ClientSubaccountController;
 use App\Http\Controllers\Client\PasswordResetController as ClientPasswordResetController;
+use App\Http\Controllers\Client\ClientAllocationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -90,8 +94,8 @@ Route::prefix('admin')
         Route::get('/', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
 
         // Admin summary / transactions
-        Route::get('/summary', [AdminDashboardController::class, 'summary'])->name('admin.summary');
-        Route::get('/summary/report/pdf', [AdminDashboardController::class, 'generateSummaryReportPdf'])->name('admin.summary.report.pdf');
+        Route::get('/summary', [AdminSummaryController::class, 'index'])->name('admin.summary');
+        Route::get('/summary/report/pdf', [AdminSummaryController::class, 'generatePdf'])->name('admin.summary.report.pdf');
 
         // AJAX endpoint for monthly chart analytics
         Route::get('/dashboard/chart-data', [AdminDashboardController::class, 'chartData'])->name('admin.dashboard.chartdata');
@@ -111,6 +115,7 @@ Route::prefix('admin')
         Route::resource('inbound', InboundController::class);
         Route::get('/outbound/report/pdf', [OutboundController::class, 'generateReportPdf'])->name('admin.outbound.report.pdf');
         Route::resource('outbound', OutboundController::class);
+        Route::post('/outbound/make', [OutboundController::class,'storeAjaxOutbound']);
         Route::get('/outbound/search-recipients', [OutboundController::class, 'searchRecipients'])
             ->name('outbound.search-recipients');
 
@@ -140,7 +145,7 @@ Route::prefix('admin')
             ->name('requests.index');
 
         // Admin notifications page
-        Route::get('/notifications', [AdminDashboardController::class, 'notifications'])
+        Route::get('/notifications', [AdminNotificationController::class, 'notifications'])
             ->name('admin.notifications');
 
         // Notification preferences
@@ -152,9 +157,9 @@ Route::prefix('admin')
             ->name('admin.notifications.counts');
 
         // Notification actions
-        Route::post('/notifications/{id}/read', [AdminDashboardController::class, 'markNotificationAsRead'])
+        Route::post('/notifications/{id}/read', [AdminNotificationController::class, 'markNotificationAsRead'])
             ->name('admin.notifications.read');
-        Route::post('/notifications/read-all', [AdminDashboardController::class, 'markAllNotificationsAsRead'])
+        Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllNotificationsAsRead'])
             ->name('admin.notifications.readAll');
 
         // ✅ ALIAS name (so route('admin.requests') also works)
@@ -173,6 +178,9 @@ Route::prefix('admin')
         // Keep ONLY if your controller really has decide()
         Route::put('/requests/{stockRequest}/decide', [AdminRequestController::class, 'decide'])
             ->name('admin.requests.decide');
+
+        Route::get('/allocations', [AllocationController::class, 'index'])
+            ->name('admin.allocations.index');
 
         /*
         |--------------------------------------------------------------------------
@@ -207,12 +215,15 @@ Route::prefix('client')
 
         Route::get('/stocks', [ClientStockController::class, 'index'])->name('client.stocks');
 
+        //allocated items page
+        Route::get('/allocations', [ClientAllocationController::class, 'index'])->name('client.allocations.index');
+
         // ✅ Multi item request submit
         Route::post('/requests', [ClientRequestController::class, 'store'])->name('client.requests.store');
 
         // ✅ View requests
         Route::get('/requests', [ClientRequestController::class, 'index'])->name('client.requests');
-        
+
         // ✅ Cancel pending request
         Route::post('/requests/{id}/cancel', [ClientRequestController::class, 'cancel'])->name('client.requests.cancel');
 

@@ -167,33 +167,106 @@
         transform: translateY(-1px) !important;
         box-shadow: 0 2px 4px rgba(59,130,246,0.1) !important;
     }
+
+    .pagination-wrapper {
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:12px;
+        margin-top:14px;
+        padding:12px 14px;
+        border:1px solid var(--line);
+        border-radius:12px;
+        background:#ffffff;
+        box-shadow:0 6px 18px rgba(15,23,42,.06);
+        flex-wrap:wrap;
+    }
+    .pagination-info {
+        color:#475569;
+        font-size:14px;
+        font-weight:600;
+    }
+    .pagination-links {
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+    }
+    .pagination-link,
+    .pagination-disabled,
+    .pagination-current {
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        min-width:36px;
+        height:36px;
+        padding:0 10px;
+        border-radius:8px;
+        border:1px solid #dbeafe;
+        font-size:13px;
+        font-weight:700;
+        text-decoration:none;
+    }
+    .pagination-link {
+        background:#ffffff;
+        color:#1d4ed8;
+    }
+    .pagination-link:hover {
+        background:#eff6ff;
+    }
+    .pagination-current {
+        background:#2563eb;
+        color:#ffffff;
+        border-color:#2563eb;
+    }
+    .pagination-disabled {
+        background:#f8fafc;
+        color:#94a3b8;
+        cursor:not-allowed;
+    }
+
 </style>
 
 <div class="toolbar">
-    <div style="display:flex; gap:12px; align-items:center;">
+    <form id="stocksFilterForm" method="GET" action="{{ route('stocks.index') }}" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
         <h2 style="margin:0;">Stocks</h2>
-        @php
-            $filterCategories = $allCategories->pluck('name')->unique()->values();
-        @endphp
 
-        <input id="stocksSearch" type="search" placeholder="Search ID, description, category..." style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;min-width:260px;">
+        <input
+            id="stocksSearch"
+            name="q"
+            type="search"
+            value="{{ request('q') }}"
+            placeholder="Search ID, description, category..."
+            style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;min-width:260px;"
+        >
 
-        <select id="filterCategory" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;">
+        <select
+            id="filterCategory"
+            name="category_id"
+            style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;"
+        >
             <option value="">All categories</option>
-            @foreach($filterCategories as $c)
-                <option value="{{ strtolower($c) }}">{{ $c }}</option>
+            @foreach($allCategories as $category)
+                <option value="{{ $category->id }}" {{ (string) request('category_id') === (string) $category->id ? 'selected' : '' }}>
+                    {{ $category->name }}
+                </option>
             @endforeach
         </select>
 
-        <select id="filterAvailability" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;">
+        <select
+            id="filterAvailability"
+            name="availability"
+            style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;"
+        >
             <option value="">All</option>
-            <option value="in">In stock (green)</option>
-            <option value="low">Low stock (orange / red)</option>
-            <option value="out">Out of stock (red)</option>
+            <option value="in" {{ request('availability') === 'in' ? 'selected' : '' }}>In stock (green)</option>
+            <option value="low" {{ request('availability') === 'low' ? 'selected' : '' }}>Low stock (orange / red)</option>
+            <option value="out" {{ request('availability') === 'out' ? 'selected' : '' }}>Out of stock (red)</option>
         </select>
-    </div>
 
-    <a class="btn-link" href="#" onclick="openStockModal()">Add New Stock</a>
+        <button type="submit" class="btn-link" style="cursor:pointer;">Filter</button>
+    </form>
+
+    <a class="btn-link" href="#" onclick="openStockModal()">Add New Item</a>
 </div>
 
 <div style="overflow-x:auto; border-radius:16px; box-shadow:0 8px 25px rgba(59,130,246,0.15); background:linear-gradient(135deg, #eff6ff, #dbeafe);">
@@ -205,6 +278,7 @@
                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:200px;">Category</th>
                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:80px;">Unit</th>
                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:90px;">Stock</th>
+                <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:90px;">Hidden</th>
                 <th style="padding:12px 10px; text-align:left; border-bottom:2px solid #1e40af; font-weight:700; color:#ffffff; font-size:12px; min-width:80px;">Actions</th>
             </tr>
         </thead>
@@ -215,7 +289,16 @@
                     $desc = $s->description ?? $s->name ?? '';
                     $stockVal = $s->stock ?? 0;
                 @endphp
-                <tr style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);" data-stock-id="{{ $s->id }}" data-id="{{ strtolower($s->id_no ?? $s->id) }}" data-desc="{{ strtolower($desc) }}" data-cat="{{ strtolower($cat) }}" data-stock="{{ $stockVal }}">
+                <div class="field">
+                    <tr
+                        style="border-bottom:1px solid #e0e7ff; background:linear-gradient(135deg, #ffffff, #f8fafc);"
+                        data-stock-id="{{ $s->id }}"
+                        data-id="{{ strtolower($s->id_no ?? $s->id) }}"
+                        data-desc="{{ strtolower($desc) }}"
+                        data-cat="{{ strtolower($cat) }}"
+                        data-stock="{{ $stockVal }}"
+                        data-hidden="{{ $s->hidden ? 1 : 0 }}"
+                    >
                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
                         <div style="font-weight:700; color:#1e40af; font-size:14px;">{{ $s->id_no ?? $s->id }}</div>
                     </td>
@@ -233,6 +316,17 @@
                             <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fecaca; background:#fef2f2; color:#dc2626;">Out of stock</span>
                         @endif
                     </td>
+                    <td class="hidden-status-cell" style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
+                        @if($s->hidden)
+                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fecaca; background:#fef2f2; color:#dc2626;">
+                                Hidden
+                            </span>
+                        @else
+                            <span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;">
+                                Visible
+                            </span>
+                        @endif
+                    </td>
                     <td style="padding:14px 10px; border-bottom:1px solid #e0e7ff;">
                         <button type="button" style="padding:8px 12px; border-radius:8px; border:1px solid #3b82f6; background:#3b82f6; color:#ffffff; font-weight:700; cursor:pointer; transition:all 0.3s ease;" onclick="openEditModal({{ $s->id }})">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -244,12 +338,67 @@
                 </tr>
             @empty
                 <tr style="background:linear-gradient(135deg, #f8fafc, #f1f5f9);">
-                    <td colspan="6" style="padding:20px 10px; text-align:center; color:#64748b; font-size:14px;">No stocks found.</td>
+                    <td colspan="7" style="padding:20px 10px; text-align:center; color:#64748b; font-size:14px;">No stocks found.</td>
                 </tr>
             @endforelse
         </tbody>
     </table>
 </div>
+
+@if($stocks instanceof \Illuminate\Pagination\LengthAwarePaginator)
+    <div class="pagination-wrapper">
+        <div class="pagination-info">
+            Showing {{ $stocks->firstItem() ?? 0 }}
+            to {{ $stocks->lastItem() ?? 0 }}
+            of {{ $stocks->total() }} results
+        </div>
+
+        <div class="pagination-links">
+            @if($stocks->onFirstPage())
+                <span class="pagination-disabled">‹ Previous</span>
+            @else
+                <a href="{{ $stocks->previousPageUrl() }}" class="pagination-link">‹ Previous</a>
+            @endif
+
+            @php
+                $currentPage = $stocks->currentPage();
+                $lastPage = $stocks->lastPage();
+                $startPage = max(1, $currentPage - 2);
+                $endPage = min($lastPage, $currentPage + 2);
+            @endphp
+
+            @if($startPage > 1)
+                <a href="{{ $stocks->url(1) }}" class="pagination-link">1</a>
+
+                @if($startPage > 2)
+                    <span class="pagination-disabled">...</span>
+                @endif
+            @endif
+
+            @for($page = $startPage; $page <= $endPage; $page++)
+                @if($page === $currentPage)
+                    <span class="pagination-current">{{ $page }}</span>
+                @else
+                    <a href="{{ $stocks->url($page) }}" class="pagination-link">{{ $page }}</a>
+                @endif
+            @endfor
+
+            @if($endPage < $lastPage)
+                @if($endPage < $lastPage - 1)
+                    <span class="pagination-disabled">...</span>
+                @endif
+
+                <a href="{{ $stocks->url($lastPage) }}" class="pagination-link">{{ $lastPage }}</a>
+            @endif
+
+            @if($stocks->hasMorePages())
+                <a href="{{ $stocks->nextPageUrl() }}" class="pagination-link">Next ›</a>
+            @else
+                <span class="pagination-disabled">Next ›</span>
+            @endif
+        </div>
+    </div>
+@endif
 
 <!-- Edit Stock Modal -->
 <div id="editStockModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:10000; align-items:center; justify-content:center; padding:20px;">
@@ -294,6 +443,19 @@
                         <option value="{{ $catOpt->id }}">{{ $catOpt->name }}</option>
                     @endforeach
                 </select>
+            </div>
+            <div class="field">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input
+                        type="checkbox"
+                        id="editHiddenInput"
+                        value="1"
+                        style="width:18px; height:18px; cursor:pointer; accent-color:#3b82f6;"
+                    >
+                    <label for="editHiddenInput" style="margin:0; font-weight:600; cursor:pointer; color:#374151; font-size:14px;">
+                        Hidden (Admin Only)
+                    </label>
+                </div>
             </div>
 
             <div id="editFeedback" style="padding:8px 12px; border-radius:8px; font-size:13px; display:none;"></div>
@@ -391,6 +553,11 @@ function openEditModal(stockId){
                 }
             }
         }
+        const hiddenInput = document.getElementById('editHiddenInput');
+
+        if (hiddenInput) {
+            hiddenInput.checked = row.dataset.hidden === '1';
+        }
 
         console.log('Populated fields:', { desc, unit, category });
     } else {
@@ -412,6 +579,10 @@ async function saveEditStock(){
     payload.append('unit', document.getElementById('editUnitInput').value.trim());
     const categoryId = document.getElementById('editCategorySelect').value;
     if (categoryId) payload.append('category_id', categoryId);
+
+    const hiddenInput = document.getElementById('editHiddenInput');
+    payload.append('hidden', hiddenInput && hiddenInput.checked ? '1' : '0');
+
     payload.append('_token', CSRF_TOKEN);
     payload.append('_method', 'PUT');
 
@@ -427,11 +598,22 @@ async function saveEditStock(){
             const row = document.querySelector(`tr[data-stock-id='${_editStockId}']`);
             if (row) {
                 const cells = row.querySelectorAll('td');
+
                 cells[1].textContent = data.stock.description || '—';
                 cells[2].textContent = data.stock.category?.name || 'Unknown';
                 cells[3].textContent = data.stock.unit || '—';
+
                 row.dataset.desc = (data.stock.description || '').toLowerCase();
                 row.dataset.cat = (data.stock.category?.name || '').toLowerCase();
+                row.dataset.hidden = data.stock.hidden ? '1' : '0';
+
+                const hiddenCell = row.querySelector('.hidden-status-cell');
+
+                if (hiddenCell) {
+                    hiddenCell.innerHTML = data.stock.hidden
+                        ? `<span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #fecaca; background:#fef2f2; color:#dc2626;">Hidden</span>`
+                        : `<span style="padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid #bbf7d0; background:#ecfdf5; color:#059669;">Visible</span>`;
+                }
             }
             closeEditModal();
         } else {
@@ -446,52 +628,31 @@ function number_format(number, decimals) {
     return parseFloat(number).toFixed(decimals);
 }
 
+const stocksFilterForm = document.getElementById('stocksFilterForm');
 const stocksSearch = document.getElementById('stocksSearch');
 const filterCategory = document.getElementById('filterCategory');
 const filterAvailability = document.getElementById('filterAvailability');
 
-function filterStocks(){
-    const q = stocksSearch.value.trim().toLowerCase();
-    const cat = filterCategory.value;
-    const avail = filterAvailability.value; // "in" or "out" or ""
+let stocksSearchTimeout;
 
-    document.querySelectorAll('table tbody tr[data-id]').forEach(row => {
-        const id = row.dataset.id || '';
-        const desc = row.dataset.desc || '';
-        const category = row.dataset.cat || '';
-        const stock = parseInt(row.dataset.stock || '0', 10);
+function submitStocksFilter() {
+    if (!stocksFilterForm) return;
 
-        let visible = true;
-
-        if(q){
-            visible = id.includes(q) || desc.includes(q) || category.includes(q);
-        }
-
-        if(visible && cat){
-            visible = category === cat;
-        }
-
-        if(visible && avail){
-            // Availability ranges match the colored badges:
-            // green: >=50, low: 1-49, out: 0
-            if(avail === 'in') visible = stock >= 50; // green (ample)
-            if(avail === 'low') visible = stock > 0 && stock <= 49; // low stock (orange)
-            if(avail === 'out') visible = stock <= 0; // out of stock
-        }
-
-        row.style.display = visible ? '' : 'none';
-    });
+    clearTimeout(stocksSearchTimeout);
+    stocksSearchTimeout = setTimeout(() => {
+        stocksFilterForm.submit();
+    }, 400);
 }
 
-stocksSearch && stocksSearch.addEventListener('input', filterStocks);
-filterCategory && filterCategory.addEventListener('change', filterStocks);
-filterAvailability && filterAvailability.addEventListener('change', filterStocks);
+stocksSearch && stocksSearch.addEventListener('input', submitStocksFilter);
+filterCategory && filterCategory.addEventListener('change', () => stocksFilterForm.submit());
+filterAvailability && filterAvailability.addEventListener('change', () => stocksFilterForm.submit());
 </script>
 
 <!-- Add Stock Modal -->
 <div id="stockModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5); z-index:9999; justify-content:center; align-items:center;">
     <div style="background:linear-gradient(135deg, #ffffff, #f8fafc); border-radius:16px; padding:24px; width:520px; max-width:95%; box-shadow:0 18px 40px rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.1);">
-        <h3 style="margin:0 0 20px 0; font-size:18px; font-weight:800; color:#000000; text-align:center;">Add New Stock</h3>
+        <h3 style="margin:0 0 20px 0; font-size:18px; font-weight:800; color:#000000; text-align:center;">Add New Item</h3>
         
         @if($errors->any())
             <div style="color: var(--red); margin-bottom:16px; padding:12px; background: rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); border-radius:8px;">

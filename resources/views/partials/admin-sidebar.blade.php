@@ -190,6 +190,17 @@
     <span class="nav-tooltip">Track incoming inventory</span>
 </a>
 
+<a href="{{ route('admin.allocations.index') }}"
+   class="{{ request()->routeIs('admin.allocations.*') ? 'active' : '' }} nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+        <path d="M9 12l2 2 4-4"></path>
+    </svg>
+    <span class="nav-text">Allocations</span>
+    <span class="nav-tooltip">Monitor office stock allocations</span>
+</a>
+
 <a href="/admin/outbound" class="{{ request()->is('admin/outbound*') ? 'active' : '' }} nav-item">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>

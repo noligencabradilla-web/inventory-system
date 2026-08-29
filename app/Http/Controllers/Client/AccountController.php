@@ -390,8 +390,6 @@ class AccountController extends Controller
         $pdf->set_option('isRemoteEnabled', true);
         $pdf->set_option('isHtml5ParserEnabled', true);
         $pdf->set_option('isFontSubsettingEnabled', true);
-        $pdf->set_option('enablePhp', true);
-        $pdf->set_option('enableJavascript', true);
         $pdf->setPaper('a4', 'portrait');
         
         // Get the HTML content

@@ -81,7 +81,7 @@ services:
       PMA_HOST: mysql
       PMA_USER: ${DB_USERNAME:-root}
       PMA_PASSWORD: ${DB_PASSWORD:-root}
-      PMA_PORT: 3306
+      PMA_PORT: ${DB_PORT:-3306}
     ports:
       - "${PHPMYADMIN_PORT:-8081}:80"
     depends_on:

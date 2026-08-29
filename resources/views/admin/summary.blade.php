@@ -143,6 +143,62 @@
         .summary-table td.numeric { text-align:right; color:#475569; font-weight:600; }
         .summary-table td .summary-label { color:#1e40af; font-weight:700; font-size:14px; }
         .summary-table td .summary-text { color:#334155; font-size:14px; }
+
+        .pagination-wrapper {
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:12px;
+            margin-top:14px;
+            padding:12px 14px;
+            border:1px solid var(--line);
+            border-radius:12px;
+            background:#ffffff;
+            box-shadow:0 6px 18px rgba(15,23,42,.06);
+            flex-wrap:wrap;
+        }
+        .pagination-info {
+            color:#475569;
+            font-size:14px;
+            font-weight:600;
+        }
+        .pagination-links {
+            display:flex;
+            gap:6px;
+            flex-wrap:wrap;
+            align-items:center;
+        }
+        .pagination-link,
+        .pagination-disabled,
+        .pagination-current {
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-width:36px;
+            height:36px;
+            padding:0 10px;
+            border-radius:8px;
+            border:1px solid #dbeafe;
+            font-size:13px;
+            font-weight:700;
+            text-decoration:none;
+        }
+        .pagination-link {
+            background:#ffffff;
+            color:#1d4ed8;
+        }
+        .pagination-link:hover { background:#eff6ff; }
+        .pagination-current {
+            background:#2563eb;
+            color:#ffffff;
+            border-color:#2563eb;
+        }
+        .pagination-disabled {
+            background:#f8fafc;
+            color:#94a3b8;
+            cursor:not-allowed;
+        }
+
     </style>
 
     <div class="card-body" style="position:relative;">
@@ -179,7 +235,7 @@
                                     id="date_from"
                                     type="date"
                                     name="date_from"
-                                    value="{{ $dateFrom ?? '' }}"
+                                    value="{{ $dateFrom ?: (isset($start) ? $start->toDateString() : now()->startOfMonth()->toDateString()) }}"
                                     style="padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff;"
                                 />
                             </div>
@@ -189,14 +245,14 @@
                                     id="date_to"
                                     type="date"
                                     name="date_to"
-                                    value="{{ $dateTo ?? '' }}"
+                                    value="{{ $dateTo ?: (isset($end) ? $end->toDateString() : now()->toDateString()) }}"
                                     style="padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff;"
                                 />
                             </div>
                         </div>
 
                         <a
-                            href="{{ route('admin.summary.report.pdf') }}?{{ http_build_query(request()->only(['q', 'office', 'date_from', 'date_to'])) }}"
+                            href="{{ route('admin.summary.report.pdf') }}?{{ http_build_query(request()->only(['q', 'office', 'date_from', 'date_to', 'page'])) }}"
                             class="btn-submit"
                             style="padding:10px 14px; border-radius:10px; background:#2563eb; color:#fff; text-decoration:none; font-weight:700;"
                         >
@@ -234,7 +290,62 @@
                                 @endforelse
                             </tbody>
                         </table>
-                    </div>
+                    </div>{{-- summary-table-wrapper --}}
+
+                    @if($stockSummaries instanceof \Illuminate\Pagination\LengthAwarePaginator)
+                        <div class="pagination-wrapper">
+                            <div class="pagination-info">
+                                Showing {{ $stockSummaries->firstItem() ?? 0 }}
+                                to {{ $stockSummaries->lastItem() ?? 0 }}
+                                of {{ $stockSummaries->total() }} results
+                            </div>
+
+                            <div class="pagination-links">
+                                @if($stockSummaries->onFirstPage())
+                                    <span class="pagination-disabled">‹ Previous</span>
+                                @else
+                                    <a href="{{ $stockSummaries->previousPageUrl() }}" class="pagination-link">‹ Previous</a>
+                                @endif
+
+                                @php
+                                    $currentPage = $stockSummaries->currentPage();
+                                    $lastPage = $stockSummaries->lastPage();
+                                    $startPage = max(1, $currentPage - 2);
+                                    $endPage = min($lastPage, $currentPage + 2);
+                                @endphp
+
+                                @if($startPage > 1)
+                                    <a href="{{ $stockSummaries->url(1) }}" class="pagination-link">1</a>
+
+                                    @if($startPage > 2)
+                                        <span class="pagination-disabled">...</span>
+                                    @endif
+                                @endif
+
+                                @for($page = $startPage; $page <= $endPage; $page++)
+                                    @if($page === $currentPage)
+                                        <span class="pagination-current">{{ $page }}</span>
+                                    @else
+                                        <a href="{{ $stockSummaries->url($page) }}" class="pagination-link">{{ $page }}</a>
+                                    @endif
+                                @endfor
+
+                                @if($endPage < $lastPage)
+                                    @if($endPage < $lastPage - 1)
+                                        <span class="pagination-disabled">...</span>
+                                    @endif
+
+                                    <a href="{{ $stockSummaries->url($lastPage) }}" class="pagination-link">{{ $lastPage }}</a>
+                                @endif
+
+                                @if($stockSummaries->hasMorePages())
+                                    <a href="{{ $stockSummaries->nextPageUrl() }}" class="pagination-link">Next ›</a>
+                                @else
+                                    <span class="pagination-disabled">Next ›</span>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
                 </div>
 
     <script>
